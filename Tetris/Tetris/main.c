@@ -355,7 +355,7 @@ void RotateBlock()
 
 	else if (blockType == 6)
 	{
-
+		//
 	}
 
 	for (int i = 0; i < 4; i++)
