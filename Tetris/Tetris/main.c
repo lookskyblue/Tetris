@@ -27,8 +27,9 @@ void MoveBlock(int left, int right, int down);
 void FixBlock();
 void DropBlock();
 void HideCursor();
-void RemoveLine(); // ¾îÂ¼´Ù ºí·° ¾È Áö¿öÁö´Â ¹®Á¦ ÀÖÀ½. °íÄ£ ÈÄ ÃÖÀûÈ­ ÇØº¼ °Í.
+void RemoveLine(); // ì–´ì©Œë‹¤ ë¸”ëŸ­ ì•ˆ ì§€ì›Œì§€ëŠ” ë¬¸ì œ ìžˆìŒ. ê³ ì¹œ í›„ ìµœì í™” í•´ë³¼ ê²ƒ.
 void PullLine(int firstRow);
+void AutoDown(clock_t now);
 bool RotateDetectCollision();
 void RotateBlock();
 bool DetectCollision(int left, int right, int down);
@@ -37,7 +38,10 @@ int board[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int boardCopy[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int newBlock[4][2];
 int blockType;
-int speed = 20;
+int autoDownSpeed = 20;
+int barAxisX;
+int barAxisY;
+
 
 int main()
 {
@@ -88,15 +92,15 @@ void DrawBoard()
 				switch (board[i][j])
 				{
 				case EDGE:
-					printf("¢Ê");
+					printf("â–§");
 					break;
 
 				case NEW_BLOCK:
-					printf("¡á");
+					printf("â– ");
 					break;
 
 				case FIXED_BLOCK:
-					printf("¡à");
+					printf("â–¡");
 					break;
 
 				case EMPTY:
@@ -120,10 +124,102 @@ void CreateNewBlock()
 	{
 		board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
 	}
+
+	if (blockType == 6)
+	{
+		barAxisX = 0;
+		barAxisY = 4;
+	}
 }
 
 void GetKeyInput()
 {
+	/*clock_t beforeTime = clock();
+
+	while (1)
+	{
+		if (DetectCollision(0, 0, 1) == true)
+		{
+			FixBlock();
+			return;
+		}
+
+		else if (clock() > beforeTime + 100)
+		{
+			MoveBlock(0, 0, 1);
+			DrawBoard();
+			beforeTime = clock();
+		}
+
+		if (_kbhit())
+		{
+			switch (_getch())
+			{
+			case UP:
+			{
+				if (RotateDetectCollision() == false)
+				{
+					RotateBlock();
+					DrawBoard();
+				}
+
+				break;
+			}
+
+			case LEFT:
+			{
+				if (DetectCollision(-1, 0, 0) == false)
+				{
+					MoveBlock(-1, 0, 0);
+					DrawBoard();
+				}
+
+				break;
+			}
+
+			case RIGHT:
+			{
+				if (DetectCollision(0, 1, 0) == false)
+				{
+					MoveBlock(0, 1, 0);
+					DrawBoard();
+				}
+
+				break;
+			}
+
+			case DOWN:
+			{
+				if (DetectCollision(0, 0, 1) == true)
+				{
+					FixBlock();
+					RemoveLine();
+
+					return;
+				}
+
+				MoveBlock(0, 0, 1);
+				DrawBoard();
+
+				break;
+			}
+
+			case SPACE:
+			{
+				DropBlock();
+				FixBlock();
+				RemoveLine();
+
+				return;
+			}
+
+			default:
+				break;
+			}
+		}
+
+	}*/
+
 	while (1)
 	{
 		for (int i = 0; i < 50; i++)
@@ -134,8 +230,11 @@ void GetKeyInput()
 				{
 				case UP:
 				{
-					if(RotateDetectCollision() == false)
+					if (RotateDetectCollision() == false)
+					{
 						RotateBlock();
+						DrawBoard();
+					}
 
 					break;
 				}
@@ -143,7 +242,10 @@ void GetKeyInput()
 				case LEFT:
 				{
 					if (DetectCollision(-1, 0, 0) == false)
+					{
 						MoveBlock(-1, 0, 0);
+						DrawBoard();
+					}
 
 					break;
 				}
@@ -151,7 +253,10 @@ void GetKeyInput()
 				case RIGHT:
 				{
 					if (DetectCollision(0, 1, 0) == false)
+					{
 						MoveBlock(0, 1, 0);
+						DrawBoard();
+					}
 
 					break;
 				}
@@ -167,6 +272,7 @@ void GetKeyInput()
 					}
 
 					MoveBlock(0, 0, 1);
+					DrawBoard();
 
 					break;
 				}
@@ -185,7 +291,7 @@ void GetKeyInput()
 				}
 			}
 
-			Sleep(10);
+			Sleep(20);
 		}
 
 		if (DetectCollision(0, 0, 1) == true)
@@ -196,7 +302,10 @@ void GetKeyInput()
 		}
 
 		MoveBlock(0, 0, 1);
+		DrawBoard();
 	}
+
+
 }
 
 void MoveBlock(int left, int right, int down)
@@ -207,7 +316,11 @@ void MoveBlock(int left, int right, int down)
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0] += down][newBlock[i][1] += (left + right)] = NEW_BLOCK;
 
-	DrawBoard();
+	if (blockType == 6)
+	{
+		barAxisX += down;
+		barAxisY += left + right;
+	}
 }
 
 bool DetectCollision(int left, int right, int down)
@@ -271,7 +384,7 @@ void RemoveLine()
 		//}
 
 		/*GoToXY(15, 20);
-		printf("ºí·° Á¶°¢ ÇÏ³ªÀÇ xÁÂÇ¥: %d", newBlock[i][0]);
+		printf("ë¸”ëŸ­ ì¡°ê° í•˜ë‚˜ì˜ xì¢Œí‘œ: %d", newBlock[i][0]);
 
 		for (int j = 1; j < BOARD_WIDTH; j++)
 		{
@@ -296,7 +409,6 @@ void RemoveLine()
 
 		if (removeFlag == true)
 		{
-			DrawBoard();
 			PullLine(newBlock[i][0] - 1);
 		}
 	}
@@ -331,188 +443,123 @@ void PullLine(int firstRow)
 
 void RotateBlock()
 {
-	int shiftCell[9][2] = { {0, 2},{1, 1},{2, 0},{-1, 1}, {0, 0}, {1, -1},{-2, 0},{-1, -1},{0, -2} };
-	int startX = newBlock[2][0] - 1;
-	int startY = newBlock[2][1] - 1;
-	int index = 0;
+	// square block is already checked in RotateDetectCollision function
+
+	int rotate_Info_Bar[16][2] = { {0,3}, {1,2}, {2,1}, {3,0}, {-1,2},{0, 1},{1,0},{2, -1}, {-2,1},{-1,0},{0,-1},{1,-2},{-3,0},{-2,-1},{-1,-2},{0,-3} };
+	int rotate_Info_Others[9][2] = { {0, 2},{1, 1},{2, 0},{-1, 1}, {0, 0}, {1, -1},{-2, 0},{-1, -1},{0, -2} };
+	int(*rotate_Info)[2] = NULL;
+	int maxCell;
+	int startX;
+	int startY;
+	int index;
+
+	if (blockType == 6) // bar block
+	{
+		startX = barAxisX;
+		startY = barAxisY;
+		maxCell = 4;
+		rotate_Info = rotate_Info_Bar;
+	}
+
+	else if (blockType >= 0 && blockType <= 4) // the others
+	{
+		startX = newBlock[2][0] - 1;
+		startY = newBlock[2][1] - 1;
+		maxCell = 3;
+		rotate_Info = rotate_Info_Others;
+	}
 
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
 
-	if (blockType >= 0 && blockType <= 4)
+	for (int k = 0; k < 4; k++)
 	{
-		for (int k = 0; k < 4; k++)
-		{
-			index = 0;
+		index = 0;
 
-			for (int i = startX; i < startX + 3; i++)
+		for (int i = startX; i < startX + maxCell; i++)
+		{
+			for (int j = startY; j < startY + maxCell; j++)
 			{
-				for (int j = startY; j < startY + 3; j++)
+				if (newBlock[k][0] == i && newBlock[k][1] == j)
 				{
-					if (newBlock[k][0] == i && newBlock[k][1] == j)
-					{
-						newBlock[k][0] += shiftCell[index][0];
-						newBlock[k][1] += shiftCell[index][1];
+					newBlock[k][0] += rotate_Info[index][0];
+					newBlock[k][1] += rotate_Info[index][1];
 
-						goto GET_NEW_K; // escape for getting k++
-					}
-
-					index++;
+					goto GET_NEW_K; // escape for getting k++
 				}
-			}
 
-		GET_NEW_K:;
-		}
-	}
-
-	else if (blockType == 6)
-	{
-		int k0_startX = newBlock[0][0]; // k0 X
-		int k0_startY = newBlock[0][1]; // k0 Y
-		int k1_startX = newBlock[1][0]; // k1 X
-		int k1_startY = newBlock[1][1]; // k1 Y
-		int shiftCell[4][4][2] = {
-			{{2, 2}, {1, 1}, {0, 0}, {-1, -1}},
-			{{-1, 1}, {0, 0}, {1, -1}, {2, -2}},
-			{{-2, -2}, {-1, -1}, {0, 0}, {1, 1}},
-			{{1, -1}, {0, 0}, {-1, 1}, {-2, 2}}
-		};
-
-		if (k0_startY < k1_startY)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				newBlock[i][0] += shiftCell[0][i][0];
-				newBlock[i][1] += shiftCell[0][i][1];
+				index++;
 			}
 		}
 
-		else if (k0_startX > k1_startX)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				newBlock[i][0] += shiftCell[1][i][0];
-				newBlock[i][1] += shiftCell[1][i][1];
-			}
-		}
-
-		else if (k0_startY > k1_startY)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				newBlock[i][0] += shiftCell[2][i][0];
-				newBlock[i][1] += shiftCell[2][i][1];
-			}
-		}
-
-		else if (k0_startX < k1_startX)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				newBlock[i][0] += shiftCell[3][i][0];
-				newBlock[i][1] += shiftCell[3][i][1];
-			}
-		}
+	GET_NEW_K:;
 	}
 
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
-
-	DrawBoard();
 }
 
 bool RotateDetectCollision()
 {
-	int shiftCell[9][2] = { {0, 2},{1, 1},{2, 0},{-1, 1}, {0, 0}, {1, -1},{-2, 0},{-1, -1},{0, -2} };
-	int startX = newBlock[2][0] - 1;
-	int startY = newBlock[2][1] - 1;
+	if (blockType == 5) // square block dosen't rotate.
+		return true;
+
+	int rotate_Info_Bar[16][2] = { {0,3}, {1,2}, {2,1}, {3,0}, {-1,2},{0, 1},{1,0},{2, -1}, {-2,1},{-1,0},{0,-1},{1,-2},{-3,0},{-2,-1},{-1,-2},{0,-3} };
+	int rotate_Info_Others[9][2] = { {0, 2},{1, 1},{2, 0},{-1, 1}, {0, 0}, {1, -1},{-2, 0},{-1, -1},{0, -2} };
+	int(*rotate_Info)[2] = NULL;
+	int maxCell;
+	int startX;
+	int startY;
 	int index = 0;
 
-	if (blockType >= 0 && blockType <= 4)
+	if (blockType == 6) // block - bar
 	{
-		for (int k = 0; k < 4; k++)
-		{
-			index = 0;
-
-			for (int i = startX; i < startX + 3; i++)
-			{
-				for (int j = startY; j < startY + 3; j++)
-				{
-					if (newBlock[k][0] == i && newBlock[k][1] == j)
-					{
-						if (board[newBlock[k][0] + shiftCell[index][0]][newBlock[k][1] + shiftCell[index][1]] == EDGE
-							||
-							board[newBlock[k][0] + shiftCell[index][0]][newBlock[k][1] + shiftCell[index][1]] == FIXED_BLOCK)
-							return true;
-						
-						goto GET_NEW_K; // escape for getting k++
-					}
-
-					index++;
-				}
-			}
-
-		GET_NEW_K:;
-		}
+		startX = barAxisX;
+		startY = barAxisY;
+		maxCell = 4;
+		rotate_Info = rotate_Info_Bar;
 	}
 
-	else if (blockType == 6)
+	else // block - the others
 	{
-		int k0_startX = newBlock[0][0]; // k0 X
-		int k0_startY = newBlock[0][1]; // k0 Y
-		int k1_startX = newBlock[1][0]; // k1 X
-		int k1_startY = newBlock[1][1]; // k1 Y
-		int shiftCell[4][4][2] = {
-			{{2, 2}, {1, 1}, {0, 0}, {-1, -1}},
-			{{-1, 1}, {0, 0}, {1, -1}, {2, -2}},
-			{{-2, -2}, {-1, -1}, {0, 0}, {1, 1}},
-			{{1, -1}, {0, 0}, {-1, 1}, {-2, 2}}
-		};
+		startX = newBlock[2][0] - 1;
+		startY = newBlock[2][1] - 1;
+		maxCell = 3;
+		rotate_Info = rotate_Info_Others;
+	}
 
-		if (k0_startY < k1_startY)
+	for (int i = 0; i < 4; i++)
+		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
+
+	for (int k = 0; k < 4; k++)
+	{
+		index = 0;
+
+		for (int i = startX; i < startX + maxCell; i++)
 		{
-			for (int i = 0; i < 4; i++)
+			for (int j = startY; j < startY + maxCell; j++)
 			{
-				if (board[newBlock[i][0] + shiftCell[0][i][0]][newBlock[i][1] + shiftCell[0][i][1]] == EDGE
-					||
-					board[newBlock[i][0] + shiftCell[0][i][0]][newBlock[i][1] + shiftCell[0][i][1]] == FIXED_BLOCK)
-					return true;
+				if (newBlock[k][0] == i && newBlock[k][1] == j)
+				{
+					int blockPieceX = newBlock[k][0];
+					int blockPieceY = newBlock[k][1];
+					int movePieceByX = rotate_Info[index][0];
+					int movePieceByY = rotate_Info[index][1];
+					int movedPosition = board[blockPieceX + movePieceByX][blockPieceY + movePieceByY];
+
+					if (movedPosition == EDGE || movedPosition == FIXED_BLOCK)
+						return true;
+
+					goto GET_NEW_K; // escape for getting k++
+				}
+
+				index++;
 			}
 		}
 
-		else if (k0_startX > k1_startX)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				if (board[newBlock[i][0] + shiftCell[1][i][0]][newBlock[i][1] + shiftCell[1][i][1]] == EDGE
-					||
-					board[newBlock[i][0] + shiftCell[1][i][0]][newBlock[i][1] + shiftCell[1][i][1]] == FIXED_BLOCK)
-					return true;
-			}
-		}
-
-		else if (k0_startY > k1_startY)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				if (board[newBlock[i][0] + shiftCell[2][i][0]][newBlock[i][1] + shiftCell[2][i][1]] == EDGE
-					||
-					board[newBlock[i][0] + shiftCell[2][i][0]][newBlock[i][1] + shiftCell[2][i][1]] == FIXED_BLOCK)
-					return true;
-			}
-		}
-
-		else if (k0_startX < k1_startX)
-		{
-			for (int i = 0; i < 4; i++)
-			{
-				if (board[newBlock[i][0] + shiftCell[3][i][0]][newBlock[i][1] + shiftCell[3][i][1]] == EDGE
-					||
-					board[newBlock[i][0] + shiftCell[3][i][0]][newBlock[i][1] + shiftCell[3][i][1]] == FIXED_BLOCK)
-					return true;
-			}
-		}
+	GET_NEW_K:;
 	}
 
 	return false;
 }
+
