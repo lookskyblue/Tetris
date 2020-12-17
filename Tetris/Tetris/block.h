@@ -21,14 +21,14 @@ int blocks[7][4][2] =
 		{1, 6}
 	},
 
-	{ // L block. 
+	{ // reverse L block. 
 		{1, 6},
 		{1, 4},
 		{1, 5}, // Axis
 		{0, 4}
 	},
 
-	{ // reverse L block
+	{ // L block
 		{1, 4},
 		{1, 6},
 		{1, 5}, // Axis
