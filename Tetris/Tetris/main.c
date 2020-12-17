@@ -24,13 +24,15 @@
 #define ESC 27
 #define OFFSET_X 13
 #define OFFSET_Y 3
+#define FIRST_HOLD -1
 
 void GoToXY(int x, int y);
 void SetBoard();
 void DrawBoard();
 void DrawGameOver();
-void CreateNewBlock();
+void GetNextBlock();
 void GetKeyInput();
+void CreateNextBlock();
 void MoveBlock(int left, int right, int down);
 void FixBlock();
 void DropBlock();
@@ -38,7 +40,8 @@ void HideCursor();
 void RemoveLine(); // 어쩌다 블럭 안 지워지는 문제 있음. 고친 후 최적화 해볼 것.
 void PullLine(int firstRow);
 void RotateBlock();
-void HoldBlock();
+void Hold_Block();
+void Unlock_Hold();
 bool CheckGameOver();
 bool RotateDetectCollision();
 bool DetectCollision(int left, int right, int down);
@@ -51,15 +54,17 @@ int holdBoxCopy[6][6] = { EMPTY, };
 int nextBox[6][6] = { EMPTY, };
 int nextBoxCopy[6][6] = { EMPTY, };
 int newBlock[4][2];
-int nowBlockType;
 int autoDownSpeed = 20;
 int barAxisX;
 int barAxisY;
 int autoDownPassedTime = 500;
-int heldBlockType = 0;
+int heldBlockType = FIRST_HOLD;
+int nowBlockType;
+int nextBlockType;
 
-bool isAlreadyHeld = false;
+bool hold_Lock = false;
 bool isBlockChanged = false;
+bool isNextBlockEmpty = true;
 
 int main()
 {
@@ -70,7 +75,14 @@ int main()
 
 	do
 	{
-		CreateNewBlock();
+		/*if (isNextBlockEmpty == true)
+		{
+			CreateNextBlock();
+			isNextBlockEmpty = false;
+		}*/
+
+		GetNextBlock();
+		//CreateNextBlock();
 		DrawBoard();
 		GetKeyInput();
 
@@ -83,7 +95,6 @@ int main()
 
 			if (userAnswer == AGAIN)
 			{
-				//system("cls");
 				memset(&board, 0, sizeof(board));
 				SetBoard();
 
@@ -125,16 +136,19 @@ void SetBoard()
 	board[2][0] = EDGE;
 	board[2][BOARD_WIDTH] = EDGE;
 
-	// Set hold box
+	// Set hold box and next box
 	for (i = 0; i < 6; i++)
 	{
 		holdBox[i][0] = FIXED_BLOCK;
 		holdBox[i][5] = FIXED_BLOCK;
 		holdBox[0][i] = FIXED_BLOCK;
 		holdBox[5][i] = FIXED_BLOCK;
-	}
 
-	// Set next box
+		nextBox[i][0] = FIXED_BLOCK;
+		nextBox[i][5] = FIXED_BLOCK;
+		nextBox[0][i] = FIXED_BLOCK;
+		nextBox[5][i] = FIXED_BLOCK;
+	}
 }
 
 void DrawBoard()
@@ -225,37 +239,77 @@ void DrawBoard()
 		}
 	}
 
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 1);
+	printf("H O L D");
+
 	// Draw next box
+	for (int i = 0; i < 6; i++)
+	{
+		for (int j = 0; j < 6; j++)
+		{
+			if (nextBox[i][j] != nextBoxCopy[i][j])
+			{
+
+				GoToXY(j + OFFSET_X + 14, i + OFFSET_Y + 3);
+
+				switch (nextBox[i][j])
+				{
+				case NEW_BLOCK:
+					printf("■");
+					break;
+
+				case FIXED_BLOCK:
+					printf("□");
+					break;
+
+				case EMPTY:
+					printf("  ");
+					break;
+
+				default:
+					break;
+				}
+
+				nextBoxCopy[i][j] = nextBox[i][j];
+			}
+		}
+	}
+
+	GoToXY(OFFSET_X + 15, OFFSET_Y + 1);
+	printf("N E X T");
 
 	// Draw score
 
 	// Draw best score
 }
 
-void CreateNewBlock()
+void GetNextBlock()
 {
-	//if (changeHeldBlock == true && isAlreadyHeld == true)
+	if (isNextBlockEmpty == true)
+	{
+		CreateNextBlock();
+		nowBlockType = nextBlockType;
+		isNextBlockEmpty = false;
+	}
+
+	//if (isBlockChanged == true)
 	//{
-	//	memcpy(newBlock, blocks[realBlockType], sizeof(blocks[realBlockType]));
-	//	changeHeldBlock = false;
-	//	//isAlreadyHeld = false;
+	//	isBlockChanged = false;
+
+	//	if(nowBlockType == FIRST_HOLD) // Initial value of heldBlockType is FIRST_HOLD 
+	//		nowBlockType = rand() % 7;
 	//}
 
-	//else
-	{
-		if (isBlockChanged == true)
-		{
-			isBlockChanged = false;
-		}
+	//else if (isBlockChanged == false)
+	//{
+	//	srand(clock());
+	//	nowBlockType = nextBlockType; // There are seven blocks in block.h
+	//}
 
-		else if (isBlockChanged == false)
-		{
-			srand(clock());
-			nowBlockType = rand() % 7; // There are seven blocks in block.h
-		}
+	CreateNextBlock();
+	nowBlockType = nextBlockType;
 
-		memcpy(newBlock, blocks[nowBlockType], sizeof(blocks[nowBlockType]));
-	}
+	memcpy(newBlock, blocks[nowBlockType], sizeof(blocks[nowBlockType]));
 
 	for (int i = 0; i < 4; i++)
 	{
@@ -278,11 +332,10 @@ void GetKeyInput()
 	{
 		if ((DetectCollision(0, 0, 1) == true)) // If it dectct collision and over autoFixBaseTime, active FixBlock() function
 		{
-
-
 			if (clock() > autoFixBaseTime + 1000)
 			{
 				FixBlock();
+				Unlock_Hold();
 				RemoveLine();
 				return;
 			}
@@ -338,6 +391,7 @@ void GetKeyInput()
 				if (DetectCollision(0, 0, 1) == true)
 				{
 					FixBlock();
+					Unlock_Hold();
 					RemoveLine();
 
 					return;
@@ -352,19 +406,19 @@ void GetKeyInput()
 
 			case HOLD:
 			{
-				if (isAlreadyHeld == false)
+				if (hold_Lock == false)
 				{
-					HoldBlock();
-					isAlreadyHeld = true;
-
+					Hold_Block();
+					hold_Lock = true;
+					
 					return;
 				}
 
-				/*else if (isAlreadyHeld == false && changeHeldBlock == true)
+				/*else if (hold_Lock == false && changeHeldBlock == true)
 				{
-					HoldBlock();
+					Hold_Block();
 					return;
-				}*/
+		_		}*/
 
 				else
 					break;
@@ -374,6 +428,7 @@ void GetKeyInput()
 			{
 				DropBlock();
 				FixBlock();
+				Unlock_Hold();
 				RemoveLine();
 
 				return;
@@ -422,9 +477,6 @@ void FixBlock()
 
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = FIXED_BLOCK;
-
-	if (isAlreadyHeld == true)
-		isAlreadyHeld = false;
 }
 
 void DropBlock()
@@ -729,7 +781,7 @@ int GetUserAnswer()
 	}
 }
 
-void HoldBlock()
+void Hold_Block()
 {
 	int nowBlockPrototype[4][2];
 
@@ -767,4 +819,46 @@ void HoldBlock()
 
 	GET_NEW_K:;
 	}
+}
+
+void Unlock_Hold()
+{
+	if (hold_Lock == true)
+		hold_Lock = false;
+}
+
+void CreateNextBlock()
+{
+	int nextBlockPrototype[4][2];
+
+	srand(clock());
+	nextBlockType = rand() % 7;
+
+	memcpy(nextBlockPrototype, blocks[nextBlockType], sizeof(blocks[nextBlockType]));
+
+	for (int i = 1; i < 5; i++)
+	{
+		for (int j = 1; j < 5; j++)
+		{
+			nextBox[i][j] = EMPTY;
+		}
+	}
+
+	for (int k = 0; k < 4; k++)
+	{
+		for (int i = 1; i < 5; i++)
+		{
+			for (int j = 1; j < 5; j++)
+			{
+				if (nextBlockPrototype[k][0] + 2 == i && nextBlockPrototype[k][1] - 3 == j)
+				{
+					nextBox[i][j] = NEW_BLOCK;
+					goto GET_NEW_K;
+				}
+			}
+		}
+
+	GET_NEW_K:;
+	}
+
 }
