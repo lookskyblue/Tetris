@@ -1,4 +1,4 @@
-﻿#include <stdio.h>
+#include <stdio.h>
 #include <conio.h>
 #include <windows.h>
 #include <stdlib.h>
@@ -20,7 +20,7 @@
 #define DOWN 80
 #define HOLD 99
 #define STOP 0
-#define AGAIN 1
+#define AGAIN 97
 #define ESC 27
 #define OFFSET_X 13
 #define OFFSET_Y 3
@@ -56,10 +56,10 @@ int autoDownSpeed = 20;
 int barAxisX;
 int barAxisY;
 int autoDownPassedTime = 500;
-int heldBlockType;
-int realBlockType;
-bool isHeld = false;
-bool changeHeldBlock = false;
+int heldBlockType = 0;
+
+bool isAlreadyHeld = false;
+bool isBlockChanged = false;
 
 int main()
 {
@@ -83,13 +83,14 @@ int main()
 
 			if (userAnswer == AGAIN)
 			{
+				//system("cls");
 				memset(&board, 0, sizeof(board));
 				SetBoard();
 
 				continue;
 			}
 
-			else if (userAnswer == STOP)
+			else if (userAnswer == ESC)
 			{
 				return;
 			}
@@ -105,7 +106,7 @@ void GoToXY(int x, int y)
 }
 
 void SetBoard()
-{	
+{
 	int i, j;
 
 	// Set main game board
@@ -138,6 +139,13 @@ void SetBoard()
 
 void DrawBoard()
 {
+	/*GoToXY(5, 3);
+	printf("Draw Board");
+	Sleep(500);
+	GoToXY(5, 3);
+	printf("             ");
+	Sleep(500);*/
+
 	// Draw main game board.
 	for (int i = 0; i <= BOARD_HEIGHT; i++)
 	{
@@ -213,7 +221,7 @@ void DrawBoard()
 
 				holdBoxCopy[i][j] = holdBox[i][j];
 			}
-			
+
 		}
 	}
 
@@ -226,17 +234,26 @@ void DrawBoard()
 
 void CreateNewBlock()
 {
-	if (changeHeldBlock == true && isHeld == true)
-	{
-		memcpy(newBlock, blocks[realBlockType], sizeof(blocks[realBlockType]));
-		changeHeldBlock = false;
-		//isHeld = false;
-	}
+	//if (changeHeldBlock == true && isAlreadyHeld == true)
+	//{
+	//	memcpy(newBlock, blocks[realBlockType], sizeof(blocks[realBlockType]));
+	//	changeHeldBlock = false;
+	//	//isAlreadyHeld = false;
+	//}
 
-	else 
+	//else
 	{
-		srand(clock());
-		nowBlockType = rand() % 7; // There are seven blocks in block.h
+		if (isBlockChanged == true)
+		{
+			isBlockChanged = false;
+		}
+
+		else if (isBlockChanged == false)
+		{
+			srand(clock());
+			nowBlockType = rand() % 7; // There are seven blocks in block.h
+		}
+
 		memcpy(newBlock, blocks[nowBlockType], sizeof(blocks[nowBlockType]));
 	}
 
@@ -245,7 +262,7 @@ void CreateNewBlock()
 		board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
 	}
 
-	if (nowBlockType == 6 || realBlockType == 6)
+	if (nowBlockType == 6)
 	{
 		barAxisX = 0;
 		barAxisY = 4;
@@ -261,6 +278,8 @@ void GetKeyInput()
 	{
 		if ((DetectCollision(0, 0, 1) == true)) // If it dectct collision and over autoFixBaseTime, active FixBlock() function
 		{
+
+
 			if (clock() > autoFixBaseTime + 1000)
 			{
 				FixBlock();
@@ -333,14 +352,15 @@ void GetKeyInput()
 
 			case HOLD:
 			{
-				if (isHeld == false)
+				if (isAlreadyHeld == false)
 				{
-					realBlockType = heldBlockType;
 					HoldBlock();
+					isAlreadyHeld = true;
+
 					return;
 				}
 
-				/*else if (isHeld == false && changeHeldBlock == true)
+				/*else if (isAlreadyHeld == false && changeHeldBlock == true)
 				{
 					HoldBlock();
 					return;
@@ -368,21 +388,25 @@ void GetKeyInput()
 
 void MoveBlock(int left, int right, int down)
 {
+
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
 
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0] += down][newBlock[i][1] += (left + right)] = NEW_BLOCK;
 
-	if (nowBlockType == 6 || realBlockType == 6)
+	if (nowBlockType == 6)
 	{
 		barAxisX += down;
 		barAxisY += left + right;
 	}
+
 }
 
 bool DetectCollision(int left, int right, int down)
 {
+
+
 	for (int i = 0; i < 4; i++)
 	{
 		if (board[newBlock[i][0] + down][newBlock[i][1] + left + right] == EDGE || board[newBlock[i][0] + down][newBlock[i][1] + left + right] == FIXED_BLOCK)
@@ -399,11 +423,8 @@ void FixBlock()
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = FIXED_BLOCK;
 
-	if (isHeld == true)
-	{
-		isHeld = false;
-		changeHeldBlock = true;
-	}
+	if (isAlreadyHeld == true)
+		isAlreadyHeld = false;
 }
 
 void DropBlock()
@@ -460,9 +481,22 @@ void RemoveLine()
 		Sleep(1000);
 		x = 15;*/
 
+		/*GoToXY(5, 3);
+		printf("Remove line");
+		Sleep(300);
+		GoToXY(5, 3);
+		printf("           ");
+		Sleep(300);*/
+
 		for (int j = 1; j < BOARD_WIDTH; j++)
 		{
-			if (board[newBlock[i][0]][j] == EMPTY) // If a line dosen't have any EMPTY, replaced a line with one line up.
+			//if (board[newBlock[i][0]][j] == EMPTY || board[newBlock[i][0]][j] == CEILING ) // If a line dosen't have any EMPTY, replaced a line with one line up.
+			//{
+			//	removeFlag = false;
+			//	break;
+			//}
+
+			if (board[newBlock[i][0]][j] != FIXED_BLOCK)
 			{
 				removeFlag = false;
 				break;
@@ -478,14 +512,16 @@ void RemoveLine()
 
 void PullLine(int firstRow)
 {
-	/*GoToXY(20, 20);
-	printf("PU LINE");
-	Sleep(700);
-	GoToXY(20, 20);*/
+	/*GoToXY(5, 3);
+	printf("PULL line");
+	Sleep(300);
+	GoToXY(5, 3);
+	printf("           ");
+	Sleep(300);*/
 
 	bool pullFlag;
 
-	for (; firstRow !=3; firstRow--)
+	for (; firstRow != 3; firstRow--)
 	{
 		//pullFlag = false;
 
@@ -519,7 +555,7 @@ void RotateBlock()
 	int startY;
 	int index;
 
-	if (nowBlockType == 6 || realBlockType == 6 ) // bar block
+	if (nowBlockType == 6) // bar block
 	{
 		rotate_Info = rotate_Info_Bar;
 		startX = barAxisX;
@@ -567,7 +603,7 @@ void RotateBlock()
 
 bool RotateDetectCollision()
 {
-	if (nowBlockType == 5 || realBlockType == 5) // square block dosen't rotate.
+	if (nowBlockType == 5) // square block dosen't rotate.
 		return true;
 
 	int rotate_Info_Bar[16][2] = { {0,3}, {1,2}, {2,1}, {3,0}, {-1,2},{0, 1},{1,0},{2, -1}, {-2,1},{-1,0},{0,-1},{1,-2},{-3,0},{-2,-1},{-1,-2},{0,-3} };
@@ -578,7 +614,7 @@ bool RotateDetectCollision()
 	int startY;
 	int index = 0;
 
-	if (nowBlockType == 6 || realBlockType == 6) // block - bar
+	if (nowBlockType == 6) // block - bar
 	{
 		startX = barAxisX;
 		startY = barAxisY;
@@ -628,6 +664,13 @@ bool RotateDetectCollision()
 
 bool CheckGameOver()
 {
+	/*GoToXY(5, 3);
+	printf("CheckGameOver");
+	Sleep(300);
+	GoToXY(5, 3);
+	printf("             ");
+	Sleep(300);*/
+
 	for (int i = 1; i < BOARD_WIDTH; i++)
 	{
 		if (board[1][i] == FIXED_BLOCK)
@@ -639,6 +682,13 @@ bool CheckGameOver()
 
 void DrawGameOver()
 {
+	//GoToXY(5, 3);
+	//printf("DrawGameOver");
+	//Sleep(300);
+	//GoToXY(5, 3);
+	//printf("             ");
+	//Sleep(300);
+
 	for (int i = 0; i < BOARD_HEIGHT; i++) // game over effect - paint all blocks  
 	{
 		for (int j = 1; j < BOARD_WIDTH; j++)
@@ -648,18 +698,18 @@ void DrawGameOver()
 		}
 
 		DrawBoard();
-		Sleep(25);
+		Sleep(150);
 	}
 
 	for (int i = 0; i < 3; i++) // game over effect - blink string
 	{
 		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 1);
 		printf("         ");
-		Sleep(350);
+		Sleep(300);
 
 		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 1);
 		printf("GAME OVER");
-		Sleep(350);
+		Sleep(300);
 	}
 }
 
@@ -672,29 +722,34 @@ int GetUserAnswer()
 		userKeyInput = tolower(_getch());
 
 		if (userKeyInput == ESC)
-			return STOP;
+			return ESC;
 
-		else if (userKeyInput == 'a')
+		else if (userKeyInput == AGAIN) // AGAIN ascii = 'a'
 			return AGAIN;
 	}
 }
 
 void HoldBlock()
 {
-	int nowBlock[4][2];
-	memcpy(nowBlock, blocks[nowBlockType], sizeof(blocks[nowBlockType])); // get prototype block in block.h
+	int nowBlockPrototype[4][2];
 
-	/*if (changeHeldBlock == true)
-		;
-	else*/
-		heldBlockType = nowBlockType;
+	// Change block.
+	if (isBlockChanged == false)
+	{
+		int temp = nowBlockType;
+		nowBlockType = heldBlockType;
+		heldBlockType = temp;
+		isBlockChanged = true;
+	}
+
+	memcpy(nowBlockPrototype, blocks[heldBlockType], sizeof(blocks[heldBlockType])); // get prototype block in block.h
 
 	for (int k = 0; k < 4; k++)
-		board[newBlock[k][0]][newBlock[k][1]] = EMPTY; 
+		board[newBlock[k][0]][newBlock[k][1]] = EMPTY;
 
 	for (int i = 1; i < 5; i++)
 		for (int j = 1; j < 5; j++)
-			holdBox[i][j] = EMPTY; 
+			holdBox[i][j] = EMPTY;
 
 	for (int k = 0; k < 4; k++) // Each piece in holdBox will be written as a NEW_BLOCK, if it's position correspond with nowBlock position
 	{
@@ -702,7 +757,7 @@ void HoldBlock()
 		{
 			for (int j = 1; j < 5; j++)
 			{
-				if (nowBlock[k][0] + 2 == i && nowBlock[k][1] - 3 == j) // Adding number for adjust the position of nowBlock
+				if (nowBlockPrototype[k][0] + 2 == i && nowBlockPrototype[k][1] - 3 == j) // Adding number for adjust the position of nowBlock
 				{
 					holdBox[i][j] = NEW_BLOCK;
 					goto GET_NEW_K; // escape for getting k++
@@ -712,6 +767,4 @@ void HoldBlock()
 
 	GET_NEW_K:;
 	}
-
-	isHeld = true;
 }
