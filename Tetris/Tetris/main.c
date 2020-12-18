@@ -1,4 +1,4 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <conio.h>
 #include <windows.h>
 #include <stdlib.h>
@@ -18,45 +18,53 @@
 #define RIGHT 77
 #define UP 72
 #define DOWN 80
-#define HOLD 99
+#define HOLD 99 // alp 'c'
 #define STOP 0
-#define AGAIN 97
+#define AGAIN 97 // alp 'a'
 #define ESC 27
 #define OFFSET_X 13
 #define OFFSET_Y 3
 #define FIRST_HOLD -1
+#define SOUND_TOGGLE 109 // alp 'm' 
+#define CHAGE_BLOCK_COLOR 9 // tab
 
-void GoToXY(int x, int y);
-void SetBoard();
-void DrawBoard(); // 기준점 좌표 정리 할 것
-void DrawGameOver();
-void GetNextBlock();
-void CreateNextBlock(); //크리, 겟, 홀드 삼박자 섞이는 구조 코드 너무 안좋아..
-void GetKeyInput();
-void MoveBlock(int left, int right, int down);
-void FixBlock();
-int  DropBlock();
-void HideCursor();
-int  RemoveLine();
+int  BalancingLineScoreByLevel(int removedLine);
 int  GetUserAnswer();
-void PullLine(int row);
-void RotateBlock();
-void Hold_Block();
-void Unlock_Hold();
+int  RemoveLine();
+int  DropBlock();
+
+bool DetectCollision(int left, int right, int down);
+bool RotateDetectCollision();
+bool CheckGameOver();
+
+void ActiveRemoveLineEffect(const int* const x, int index);
+void MoveBlock(int left, int right, int down);
 void AddGameScore(int score);
-void ResetGame();
-void SaveBestScore();
-void LoadBestScoreFile();
 void FixingBlockProcedure();
 void LevelUpByRemovedLine();
-int  BalancingLineScoreByLevel(int removedLine);
-
-bool CheckGameOver();
-bool RotateDetectCollision();
-bool DetectCollision(int left, int right, int down);
+void GoToXY(int x, int y);
+void LoadBestScoreFile();
+void ChangeBlockColor();
+void CreateNextBlock();
+void PullLine(int row);
+void InitGameSetting();
+void DrawInstruction();
+void SaveBestScore();
+void DrawGameOver();
+void GetNextBlock();
+void RotateBlock();
+void GetKeyInput();
+void Unlock_Hold();
+void SoundToggle();
+void HideCursor();
+void Hold_Block();
+void DrawBoard();
+void SetBoard();
+void FixBlock();
 
 typedef struct GameSetting
 {
+	int  blockColorNum;
 	int  gameLevel;
 	int  removedLine;
 	int  nowScore;
@@ -69,15 +77,15 @@ typedef struct GameSetting
 	bool hold_Lock; // false
 	bool isExecutedHold; // false
 	bool isNextBlockEmpty; // true
-
+	bool soundOn;
 }GAMESETTING;
 
-int board[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int boardCopy[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
-int holdBox[6][6] = { EMPTY, };
+int board[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int holdBoxCopy[6][6] = { EMPTY, };
-int nextBox[6][6] = { EMPTY, };
+int holdBox[6][6] = { EMPTY, };
 int nextBoxCopy[6][6] = { EMPTY, };
+int nextBox[6][6] = { EMPTY, };
 int newBlock[4][2];
 int barAxisX;
 int barAxisY;
@@ -86,11 +94,10 @@ GAMESETTING gs;
 
 int main()
 {
+	system("mode con: cols=75 lines=28");
 	HideCursor();
-	system("color 3");                      //console color
-	system("mode con: cols=75 lines=28");   //console size
-
-	ResetGame();
+	DrawInstruction();
+	InitGameSetting();
 
 	do
 	{
@@ -113,7 +120,7 @@ int main()
 
 			if (userAnswer == AGAIN)
 			{
-				ResetGame();
+				InitGameSetting();
 				continue;
 			}
 
@@ -134,7 +141,7 @@ void GoToXY(int x, int y)
 
 void SetBoard()
 {
-	int i, j;
+	int i;
 
 	// Set main game board
 	for (i = 0; i <= BOARD_HEIGHT; i++) // Draw side edge
@@ -281,32 +288,31 @@ void DrawBoard()
 	printf("N E X T");
 
 	// Draw score
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 9);
+	GoToXY(OFFSET_X - 8, OFFSET_Y + 9);
 	printf("NOW SCORE");
 
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 11);
+	GoToXY(OFFSET_X - 8, OFFSET_Y + 11);
 	printf("%d", gs.nowScore);
 
-	// Draw best score
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 13);
-	printf("BEST SCORE");
-
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 15);
-	printf("%d", gs.bestScore);
-
 	// Draw level
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 17);
+	GoToXY(OFFSET_X - 8, OFFSET_Y + 13);
 	printf("Level");
 
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 19);
+	GoToXY(OFFSET_X - 8, OFFSET_Y + 15);
 	printf("%d", gs.gameLevel);
 
 	// Draw lines
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 21);
+	GoToXY(OFFSET_X - 8, OFFSET_Y + 17);
 	printf("Lines");
 
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 23);
+	GoToXY(OFFSET_X - 8, OFFSET_Y + 19);
 	printf("%d", gs.removedLine);
+
+	GoToXY(OFFSET_X + 14, OFFSET_Y + 9);
+	printf("Sound On/Off: M");
+
+	GoToXY(OFFSET_X + 14, OFFSET_Y + 11);
+	printf("Change Color: TAB");
 }
 
 void GetNextBlock()
@@ -484,6 +490,14 @@ void GetKeyInput()
 				return;
 			}
 
+			case SOUND_TOGGLE: // mute
+				SoundToggle();
+				break;
+
+			case CHAGE_BLOCK_COLOR:
+				ChangeBlockColor();
+				break;
+
 			default:
 				break;
 			}
@@ -493,11 +507,12 @@ void GetKeyInput()
 
 void MoveBlock(int left, int right, int down)
 {
+	int i;
 
-	for (int i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
 
-	for (int i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++)
 		board[newBlock[i][0] += down][newBlock[i][1] += (left + right)] = NEW_BLOCK;
 
 	if (gs.nowBlockType == 6)
@@ -524,7 +539,8 @@ bool DetectCollision(int left, int right, int down)
 
 void FixBlock()
 {
-	Beep(300, 10);
+	if (gs.soundOn == true)
+		Beep(300, 10);
 
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = FIXED_BLOCK;
@@ -559,17 +575,18 @@ int RemoveLine()
 	int  removeLineCount = 0;
 	int  fulledX[4] = { 0, };
 	int  index = 0;
+	int  i, j, temp;
 	bool putFlag = false;
 
-	for (int i = 0; i < 4; i++) // Return, if Fixed_Block over the ceiling
+	for (i = 0; i < 4; i++) // Return, if Fixed_Block over the ceiling
 		if (newBlock[i][0] <= 1)
 			return removeLineCount;
 
-	for (int i = 0; i < 4; i++) // find x-coordinate with fulled FIXED_BLOCK 
+	for (i = 0; i < 4; i++) // find x-coordinate with fulled FIXED_BLOCK 
 	{
 		putFlag = true;
 
-		for (int j = 1; j < BOARD_WIDTH; j++)
+		for (j = 1; j < BOARD_WIDTH; j++)
 		{
 			if (board[newBlock[i][0]][j] != FIXED_BLOCK)
 			{
@@ -587,13 +604,13 @@ int RemoveLine()
 		return removeLineCount;
 
 	// Sort x-coordinates in ascending order && Deduplication
-	for (int i = 0; i < index - 1; i++)
+	for (i = 0; i < index - 1; i++)
 	{
-		for (int j = i + 1; j < index; j++)
+		for (j = i + 1; j < index; j++)
 		{
 			if (fulledX[i] > fulledX[j]) // swap for ascending
 			{
-				int temp = fulledX[i];
+				temp = fulledX[i];
 				fulledX[i] = fulledX[j];
 				fulledX[j] = temp;
 			}
@@ -605,11 +622,13 @@ int RemoveLine()
 		}
 	}
 
-	for (int i = 0; i < index; i++)
+	ActiveRemoveLineEffect(fulledX, index);
+
+	for (i = 0; i < index; i++)
 	{
 		if (fulledX[i] == 0)
 			continue;
-
+		
 		PullLine(fulledX[i] - 1);
 		removeLineCount++;
 	}
@@ -617,8 +636,48 @@ int RemoveLine()
 	return removeLineCount;
 }
 
+void ActiveRemoveLineEffect(const int* const x, int index)
+{
+	int i, j, k;
+
+	for (k = 0; k < 3; k++)
+	{
+		for (i = 0; i < index; i++)
+		{
+			if (x[i] == 0)
+				continue;
+
+			for (j = 1; j < BOARD_WIDTH; j++)
+			{
+				board[x[i]][j] = NEW_BLOCK;
+			}
+		}
+
+		DrawBoard();
+		Sleep(50);
+
+		for (i = 0; i < index; i++)
+		{
+			if (x[i] == 0)
+				continue;
+
+			for (j = 1; j < BOARD_WIDTH; j++)
+			{
+				board[x[i]][j] = FIXED_BLOCK;
+			}
+		}
+
+		DrawBoard();
+		Sleep(50);
+	}
+	
+	if (gs.soundOn == true)
+		Beep(100, 100); // 100, 100 GOOD
+}
+
 void PullLine(int row)
 {
+	int  i;
 	bool ExitFlag;
 
 	do
@@ -627,7 +686,7 @@ void PullLine(int row)
 
 		if (row == 1)
 		{
-			for (int i = 1; i < BOARD_WIDTH; i++)
+			for (i = 1; i < BOARD_WIDTH; i++)
 				board[row + 1][i] = CEILING;
 
 			return;
@@ -635,7 +694,7 @@ void PullLine(int row)
 
 		else if (row == 2)
 		{
-			for (int i = 1; i < BOARD_WIDTH; i++)
+			for (i = 1; i < BOARD_WIDTH; i++)
 			{
 				if (board[row][i] == FIXED_BLOCK)
 				{
@@ -652,12 +711,12 @@ void PullLine(int row)
 
 		else
 		{
-			for (int i = 1; i < BOARD_WIDTH; i++)
+			for (i = 1; i < BOARD_WIDTH; i++)
 			{
 				board[row + 1][i] = board[row][i];
 			}
 
-			for (int i = 1; i < BOARD_WIDTH; i++)
+			for (i = 1; i < BOARD_WIDTH; i++)
 			{
 				if (board[row][i] != EMPTY)
 				{
@@ -674,7 +733,6 @@ void PullLine(int row)
 void RotateBlock()
 {
 	// square block is already returned in RotateDetectCollision function
-
 	int rotate_Info_Bar[16][2] = { {0,3}, {1,2}, {2,1}, {3,0}, {-1,2},{0, 1},{1,0},{2, -1}, {-2,1},{-1,0},{0,-1},{1,-2},{-3,0},{-2,-1},{-1,-2},{0,-3} };
 	int rotate_Info_Others[9][2] = { {0, 2},{1, 1},{2, 0},{-1, 1}, {0, 0}, {1, -1},{-2, 0},{-1, -1},{0, -2} };
 	int(*rotate_Info)[2] = NULL;
@@ -682,6 +740,7 @@ void RotateBlock()
 	int startX;
 	int startY;
 	int index;
+	int i, j, k;
 
 	if (gs.nowBlockType == 6) // bar block
 	{
@@ -699,16 +758,16 @@ void RotateBlock()
 		maxCell = 3;
 	}
 
-	for (int i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
 
-	for (int k = 0; k < 4; k++)
+	for (k = 0; k < 4; k++)
 	{
 		index = 0;
 
-		for (int i = startX; i < startX + maxCell; i++)
+		for (i = startX; i < startX + maxCell; i++)
 		{
-			for (int j = startY; j < startY + maxCell; j++)
+			for (j = startY; j < startY + maxCell; j++)
 			{
 				if (newBlock[k][0] == i && newBlock[k][1] == j)
 				{
@@ -725,7 +784,7 @@ void RotateBlock()
 	GET_NEW_K:;
 	}
 
-	for (int i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
 }
 
@@ -741,6 +800,7 @@ bool RotateDetectCollision()
 	int startX;
 	int startY;
 	int index = 0;
+	int i, j, k;
 
 	if (gs.nowBlockType == 6) // block - bar
 	{
@@ -758,13 +818,13 @@ bool RotateDetectCollision()
 		rotate_Info = rotate_Info_Others;
 	}
 
-	for (int k = 0; k < 4; k++)
+	for (k = 0; k < 4; k++)
 	{
 		index = 0;
 
-		for (int i = startX; i < startX + maxCell; i++)
+		for (i = startX; i < startX + maxCell; i++)
 		{
-			for (int j = startY; j < startY + maxCell; j++)
+			for (j = startY; j < startY + maxCell; j++)
 			{
 				if (newBlock[k][0] == i && newBlock[k][1] == j)
 				{
@@ -802,15 +862,12 @@ bool CheckGameOver()
 }
 
 void DrawGameOver()
-{
-	//GoToXY(5, 3);
-	//printf("DrawGameOver");
-	//Sleep(300);
-	//GoToXY(5, 3);
-	//printf("             ");
-	//Sleep(300);
+{   
+	int i, j;
+	LoadBestScoreFile();
 
-	for (int i = 0; i < BOARD_HEIGHT; i++) // game over effect - paint all blocks  
+	// game over effect - paint all blocks
+	for (i = 0; i < BOARD_HEIGHT; i++)   
 	{
 		for (int j = 1; j < BOARD_WIDTH; j++)
 		{
@@ -819,18 +876,52 @@ void DrawGameOver()
 		}
 
 		DrawBoard();
-		Sleep(100);
+		Sleep(110);
 	}
 
-	for (int i = 0; i < 3; i++) // game over effect - blink string
+	// game over effect - blink string
+	for (i = 0; i < 2; i++) 
 	{
-		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 1);
-		printf("         ");
-		Sleep(300);
+		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 2);
+		printf("          ");
 
-		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 1);
-		printf("GAME OVER");
-		Sleep(300);
+		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)), OFFSET_Y - 1);
+		printf("           ");
+		Sleep(250);
+
+		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 2);
+		printf("BEST SCORE");
+
+		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)), OFFSET_Y - 1);
+		printf("%d", gs.bestScore);
+		Sleep(250);
+	}
+
+	for (i = 0; i < 5; i++)
+	{
+		for (j = 1; j < BOARD_WIDTH; j++)
+		{
+			board[8+i][j] = EMPTY;
+		}
+	}
+
+	DrawBoard();
+
+	for (i = 0; i < 2; i++)
+	{
+		GoToXY(OFFSET_X + 3, OFFSET_Y + 9);
+		printf("          ");
+
+		GoToXY(OFFSET_X + 3, OFFSET_Y + 11);
+		printf("         ");
+		Sleep(350);
+
+		GoToXY(OFFSET_X + 3, OFFSET_Y + 9);
+		printf("A  : AGAIN");
+
+		GoToXY(OFFSET_X + 3, OFFSET_Y + 11);
+		printf("ESC: STOP");
+		Sleep(350);
 	}
 }
 
@@ -853,6 +944,7 @@ int GetUserAnswer()
 void Hold_Block()
 {
 	int nowBlockPrototype[4][2];
+	int i, j, k;
 
 	// Change block.
 	if (gs.isExecutedHold == false)
@@ -866,18 +958,18 @@ void Hold_Block()
 
 	memcpy(nowBlockPrototype, blocks[gs.heldBlockType], sizeof(blocks[gs.heldBlockType])); // get prototype block in block.h
 
-	for (int k = 0; k < 4; k++)
+	for (k = 0; k < 4; k++)
 		board[newBlock[k][0]][newBlock[k][1]] = EMPTY;
 
-	for (int i = 1; i < 5; i++) // Clear hold box
-		for (int j = 1; j < 5; j++)
+	for (i = 1; i < 5; i++) // Clear hold box
+		for (j = 1; j < 5; j++)
 			holdBox[i][j] = EMPTY;
 
-	for (int k = 0; k < 4; k++) // put now block to hold box
+	for (k = 0; k < 4; k++) // put now block to hold box
 	{
-		for (int i = 1; i < 5; i++)
+		for (i = 1; i < 5; i++)
 		{
-			for (int j = 1; j < 5; j++)
+			for (j = 1; j < 5; j++)
 			{
 				if (nowBlockPrototype[k][0] + 2 == i && nowBlockPrototype[k][1] - 3 == j) // Adding number for adjust the position of nowBlockPrototype
 				{
@@ -903,10 +995,10 @@ void AddGameScore(int score)
 	gs.nowScore += score;
 }
 
-void ResetGame()
+void InitGameSetting()
 {
 	system("cls");
-	LoadBestScoreFile();
+	HideCursor();
 	memset(&board, 0, sizeof(board));
 	memset(&boardCopy, 0, sizeof(boardCopy));
 	memset(&holdBox, 0, sizeof(holdBox));
@@ -914,14 +1006,13 @@ void ResetGame()
 	memset(&nextBox, 0, sizeof(nextBox));
 	memset(&nextBoxCopy, 0, sizeof(nextBoxCopy));
 	memset(&newBlock, 0, sizeof(newBlock));
-
+	LoadBestScoreFile();
 	SetBoard(); // Board && hold box && next box
-	srand(clock());
 
 	gs.gameLevel = 1;
 	gs.nowScore = 0;
 	gs.removedLine = 0;
-	gs.autoDownPassedTime = 500;
+	gs.autoDownPassedTime = 1000;
 	gs.nowBlockType;
 	gs.nextBlockType;
 	gs.heldBlockType = FIRST_HOLD;
@@ -930,6 +1021,10 @@ void ResetGame()
 	gs.isNextBlockEmpty = true;
 	gs.bestScore;
 	gs.isLevelUp = false;
+	gs.soundOn = true;
+	gs.blockColorNum = 7;
+
+	system("color 0");
 }
 
 void SaveBestScore()
@@ -955,7 +1050,7 @@ void LoadBestScoreFile()
 
 	if (bestScoreFile == NULL)
 	{
-		gs.bestScore = -1;
+		gs.bestScore = 0;
 		return;
 	}
 
@@ -963,7 +1058,7 @@ void LoadBestScoreFile()
 	fclose(bestScoreFile);
 }
 
-void FixingBlockProcedure() // autoDown, down, space, use this function.
+void FixingBlockProcedure() // autoDown, down, space logic, use this function.
 {
 	int removedLine = 0;
 	int score = 0;
@@ -987,13 +1082,13 @@ int BalancingLineScoreByLevel(int removedLine)
 	case 1:
 		return 100 * gs.gameLevel;
 
-	case2:
+	case 2:
 		return 300 * gs.gameLevel;
 
-	case3:
+	case 3:
 		return 500 * gs.gameLevel;
 
-	case4:
+	case 4:
 		return 800 * gs.gameLevel;
 
 	default:
@@ -1003,20 +1098,127 @@ int BalancingLineScoreByLevel(int removedLine)
 
 void LevelUpByRemovedLine()
 {
-	int minimumPassedTime = 85;
-	int coefficient = 10;
-	int level = (gs.removedLine / 1) + 1;
+	int minimumPassedTime = 50;
+	int speedUpRatio = 2; // I think 1~3 is good 
+	int levelUp_Per_FiveLines = 5; // 3~5 is good. 10 is so long game..
+	int level = (gs.removedLine / levelUp_Per_FiveLines) + 1;
 
 	while (gs.gameLevel != level)
 	{
 		gs.gameLevel++;
 
-		if (gs.autoDownPassedTime <= minimumPassedTime) // Minimum value 10 
+		if (gs.autoDownPassedTime <= minimumPassedTime) // Minimum value 50 
 		{
 			gs.autoDownPassedTime = minimumPassedTime;
 			break;
 		}
 
-		gs.autoDownPassedTime -= gs.autoDownPassedTime / coefficient;
+		gs.autoDownPassedTime -= (gs.autoDownPassedTime / 10) * speedUpRatio;
+	}
+}
+
+void SoundToggle()
+{
+	gs.soundOn = !gs.soundOn;
+}
+
+void DrawInstruction()
+{
+	puts("\n  [ TETRIS   GAME ]\n");
+	puts("\n   ▼  GUIDE  ▼ \n");
+	puts("   Sound  On/Off: M");
+	puts("   Change Color: TAB\n");
+	puts("   Left:   ←");
+	puts("   Right:  →");
+	puts("   Down:   ↓");
+	puts("   Rotate: ↑");
+	puts("   Hold:    C");
+	puts("   Drop:  SPACE");
+	puts("\n   ▲  GUIDE  ▲ \n");
+	puts("   Git: github.com/lookskyblue/Tetris");
+
+	while (1)
+	{
+		if (_kbhit())
+			if (tolower(_getch()) == 'a')
+				return;
+
+		GoToXY(0, 20);
+		printf("   Game Start: Press A");
+		Sleep(350);
+
+		GoToXY(0, 20);
+		printf("                      ");
+		Sleep(350);
+	}
+}
+
+void ChangeBlockColor()
+{
+	gs.blockColorNum++;
+
+	if (15 <= gs.blockColorNum)
+		gs.blockColorNum = 1;
+
+	switch (gs.blockColorNum)
+	{
+	case 1:
+		system("color 1");
+		break;
+
+	case 2:
+		system("color 2");
+		break;
+
+	case 3:
+		system("color 3");
+		break;
+
+	case 4:
+		system("color 4");
+		break;
+
+	case 5:
+		system("color 5");
+		break;
+
+	case 6:
+		system("color 6");
+		break;
+
+	case 7:
+		system("color 7");
+		break;
+
+	case 8:
+		system("color 8");
+		break;
+
+	case 9:
+		system("color 9");
+		break;
+
+	case 10:
+		system("color A");
+		break;
+
+	case 11:
+		system("color B");
+		break;
+
+	case 12:
+		system("color C");
+		break;
+
+	case 13:
+		system("color D");
+		break;
+
+	case 14:
+		system("color E");
+		break;
+
+	default:
+		break;
 	}
 }
