@@ -37,7 +37,7 @@ void MoveBlock(int left, int right, int down);
 void FixBlock();
 int  DropBlock();
 void HideCursor();
-int  RemoveLine(); // 4개의 조각을 굳이 다 검사 안하도록 최적화 해볼 것. 40의 고정 상수 줄일 것
+int  RemoveLine();
 int  GetUserAnswer();
 void PullLine(int row);
 void RotateBlock();
@@ -65,6 +65,7 @@ typedef struct GameSetting
 	int  heldBlockType; // FIRST_HOLD
 	int  autoDownPassedTime; // 500
 	int  bestScore;
+	bool isLevelUp;
 	bool hold_Lock; // false
 	bool isExecutedHold; // false
 	bool isNextBlockEmpty; // true
@@ -214,7 +215,7 @@ void DrawBoard()
 		}
 	}
 
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 1);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 0);
 	printf("H O L D");
 
 	// Draw next box
@@ -225,7 +226,7 @@ void DrawBoard()
 			// Draw next box
 			if (nextBox[i][j] != nextBoxCopy[i][j])
 			{
-				GoToXY(j + OFFSET_X + 14, i + OFFSET_Y + 3);
+				GoToXY(j + OFFSET_X + 14, i + OFFSET_Y + 2);
 
 				switch (nextBox[i][j])
 				{
@@ -251,7 +252,7 @@ void DrawBoard()
 			// Draw hold box
 			if (holdBox[i][j] != holdBoxCopy[i][j])
 			{
-				GoToXY(j + OFFSET_X - 8, i + OFFSET_Y + 3);
+				GoToXY(j + OFFSET_X - 8, i + OFFSET_Y + 2);
 
 				switch (holdBox[i][j])
 				{
@@ -276,32 +277,32 @@ void DrawBoard()
 		}
 	}
 
-	GoToXY(OFFSET_X + 15, OFFSET_Y + 1);
+	GoToXY(OFFSET_X + 15, OFFSET_Y + 0);
 	printf("N E X T");
 
 	// Draw score
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 10);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 9);
 	printf("NOW SCORE");
 
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 12);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 11);
 	printf("%d", gs.nowScore);
 
 	// Draw best score
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 14);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 13);
 	printf("BEST SCORE");
 
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 16);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 15);
 	printf("%d", gs.bestScore);
 
 	// Draw level
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 18);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 17);
 	printf("Level");
 
 	GoToXY(OFFSET_X - 7, OFFSET_Y + 19);
 	printf("%d", gs.gameLevel);
 
 	// Draw lines
-	GoToXY(OFFSET_X - 7, OFFSET_Y + 22);
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 21);
 	printf("Lines");
 
 	GoToXY(OFFSET_X - 7, OFFSET_Y + 23);
@@ -504,16 +505,17 @@ void MoveBlock(int left, int right, int down)
 		barAxisX += down;
 		barAxisY += left + right;
 	}
-
 }
 
 bool DetectCollision(int left, int right, int down)
 {
-
+	int movedBlockPiece;
 
 	for (int i = 0; i < 4; i++)
 	{
-		if (board[newBlock[i][0] + down][newBlock[i][1] + left + right] == EDGE || board[newBlock[i][0] + down][newBlock[i][1] + left + right] == FIXED_BLOCK)
+		movedBlockPiece = board[newBlock[i][0] + down][newBlock[i][1] + left + right];
+
+		if (movedBlockPiece == EDGE || movedBlockPiece == FIXED_BLOCK)
 			return true;
 	}
 
@@ -634,7 +636,16 @@ void PullLine(int row)
 		else if (row == 2)
 		{
 			for (int i = 1; i < BOARD_WIDTH; i++)
-				board[row + 1][i] = EMPTY;
+			{
+				if (board[row][i] == FIXED_BLOCK)
+				{
+					board[row + 1][i] = FIXED_BLOCK;
+					board[row][i] = CEILING;
+				}
+
+				else if (board[row][i] == CEILING)
+					board[row + 1][i] = EMPTY;
+			}
 
 			return;
 		}
@@ -781,13 +792,6 @@ bool RotateDetectCollision()
 
 bool CheckGameOver()
 {
-	/*GoToXY(5, 3);
-	printf("CheckGameOver");
-	Sleep(300);
-	GoToXY(5, 3);
-	printf("             ");
-	Sleep(300);*/
-
 	for (int i = 1; i < BOARD_WIDTH; i++)
 	{
 		if (board[1][i] == FIXED_BLOCK)
@@ -925,6 +929,7 @@ void ResetGame()
 	gs.isExecutedHold = false;
 	gs.isNextBlockEmpty = true;
 	gs.bestScore;
+	gs.isLevelUp = false;
 }
 
 void SaveBestScore()
@@ -998,7 +1003,20 @@ int BalancingLineScoreByLevel(int removedLine)
 
 void LevelUpByRemovedLine()
 {
-	int level = gs.removedLine / 3;
-	gs.gameLevel = level + 1;
-	gs.autoDownPassedTime = 500 - (level * 75);
+	int minimumPassedTime = 85;
+	int coefficient = 10;
+	int level = (gs.removedLine / 1) + 1;
+
+	while (gs.gameLevel != level)
+	{
+		gs.gameLevel++;
+
+		if (gs.autoDownPassedTime <= minimumPassedTime) // Minimum value 10 
+		{
+			gs.autoDownPassedTime = minimumPassedTime;
+			break;
+		}
+
+		gs.autoDownPassedTime -= gs.autoDownPassedTime / coefficient;
+	}
 }
