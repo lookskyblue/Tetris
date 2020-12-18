@@ -1,4 +1,4 @@
-﻿#include <stdio.h>
+#include <stdio.h>
 #include <conio.h>
 #include <windows.h>
 #include <stdlib.h>
@@ -30,7 +30,7 @@ void GoToXY(int x, int y);
 void SetBoard();
 void DrawBoard(); // 기준점 좌표 정리 할 것
 void DrawGameOver();
-void GetNextBlock();   
+void GetNextBlock();
 void CreateNextBlock(); //크리, 겟, 홀드 삼박자 섞이는 구조 코드 너무 안좋아..
 void GetKeyInput();
 void MoveBlock(int left, int right, int down);
@@ -38,6 +38,7 @@ void FixBlock();
 int  DropBlock();
 void HideCursor();
 int  RemoveLine(); // 4개의 조각을 굳이 다 검사 안하도록 최적화 해볼 것. 40의 고정 상수 줄일 것
+int  GetUserAnswer();
 void PullLine(int row);
 void RotateBlock();
 void Hold_Block();
@@ -47,21 +48,23 @@ void ResetGame();
 void SaveBestScore();
 void LoadBestScoreFile();
 void FixingBlockProcedure();
+void LevelUpByRemovedLine();
+int  BalancingLineScoreByLevel(int removedLine);
 
 bool CheckGameOver();
 bool RotateDetectCollision();
 bool DetectCollision(int left, int right, int down);
-int  GetUserAnswer();
 
 typedef struct GameSetting
 {
-	int removedLine;
-	int nowScore;
-	int nextBlockType;
-	int nowBlockType;
-	int heldBlockType; // FIRST_HOLD
-	int autoDownPassedTime; // 500
-	int bestScore;
+	int  gameLevel;
+	int  removedLine;
+	int  nowScore;
+	int  nextBlockType;
+	int  nowBlockType;
+	int  heldBlockType; // FIRST_HOLD
+	int  autoDownPassedTime; // 500
+	int  bestScore;
 	bool hold_Lock; // false
 	bool isExecutedHold; // false
 	bool isNextBlockEmpty; // true
@@ -93,7 +96,7 @@ int main()
 		GetNextBlock();
 		DrawBoard();
 		GetKeyInput();
-		//LevelUp();
+		LevelUpByRemovedLine();
 
 		if (CheckGameOver() == true)
 		{
@@ -165,18 +168,19 @@ void SetBoard()
 
 void DrawBoard()
 {
+	// Draw main game board
 	for (int i = 0; i <= BOARD_HEIGHT; i++)
 	{
 		for (int j = 0; j <= BOARD_WIDTH; j++)
 		{
-			if (i == 2) // draw the ceiling is erased by newBlock 
-			{
-				if (board[i][j] == EMPTY)
-					board[i][j] = CEILING;
-			}
-
 			if (board[i][j] != boardCopy[i][j])
 			{
+				if (i == 2) // draw the ceiling is erased by newBlock 
+				{
+					if (board[i][j] == EMPTY)
+						board[i][j] = CEILING;
+				}
+
 				GoToXY(j + OFFSET_X, i + OFFSET_Y);
 
 				switch (board[i][j])
@@ -210,39 +214,6 @@ void DrawBoard()
 		}
 	}
 
-	// Draw hold box
-	for (int i = 0; i < 6; i++)
-	{
-		for (int j = 0; j < 6; j++)
-		{
-			GoToXY(j + OFFSET_X - 8, i + OFFSET_Y + 3);
-
-			if (holdBox[i][j] != holdBoxCopy[i][j])
-			{
-				switch (holdBox[i][j])
-				{
-				case FIXED_BLOCK:
-					printf("□");
-					break;
-
-				case NEW_BLOCK:
-					printf("■");
-					break;
-
-				case EMPTY:
-					printf("  ");
-					break;
-
-				default:
-					break;
-				}
-
-				holdBoxCopy[i][j] = holdBox[i][j];
-			}
-
-		}
-	}
-
 	GoToXY(OFFSET_X - 7, OFFSET_Y + 1);
 	printf("H O L D");
 
@@ -250,10 +221,10 @@ void DrawBoard()
 	for (int i = 0; i < 6; i++)
 	{
 		for (int j = 0; j < 6; j++)
-		{
+		{   
+			// Draw next box
 			if (nextBox[i][j] != nextBoxCopy[i][j])
 			{
-
 				GoToXY(j + OFFSET_X + 14, i + OFFSET_Y + 3);
 
 				switch (nextBox[i][j])
@@ -276,6 +247,32 @@ void DrawBoard()
 
 				nextBoxCopy[i][j] = nextBox[i][j];
 			}
+
+			// Draw hold box
+			if (holdBox[i][j] != holdBoxCopy[i][j])
+			{
+				GoToXY(j + OFFSET_X - 8, i + OFFSET_Y + 3);
+
+				switch (holdBox[i][j])
+				{
+				case FIXED_BLOCK:
+					printf("□");
+					break;
+
+				case NEW_BLOCK:
+					printf("■");
+					break;
+
+				case EMPTY:
+					printf("  ");
+					break;
+
+				default:
+					break;
+				}
+
+				holdBoxCopy[i][j] = holdBox[i][j];
+			}
 		}
 	}
 
@@ -295,6 +292,20 @@ void DrawBoard()
 
 	GoToXY(OFFSET_X - 7, OFFSET_Y + 16);
 	printf("%d", gs.bestScore);
+
+	// Draw level
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 18);
+	printf("Level");
+
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 19);
+	printf("%d", gs.gameLevel);
+
+	// Draw lines
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 22);
+	printf("Lines");
+
+	GoToXY(OFFSET_X - 7, OFFSET_Y + 23);
+	printf("%d", gs.removedLine);
 }
 
 void GetNextBlock()
@@ -543,15 +554,14 @@ void HideCursor()
 
 int RemoveLine()
 {
-	for (int i = 0; i < 4; i++) // Return, if block over the ceiling
-		if (newBlock[i][0] <= 1)
-			return;
-
 	int  removeLineCount = 0;
 	int  fulledX[4] = { 0, };
-	bool removeFlag;
 	int  index = 0;
 	bool putFlag = false;
+
+	for (int i = 0; i < 4; i++) // Return, if Fixed_Block over the ceiling
+		if (newBlock[i][0] <= 1)
+			return removeLineCount;
 
 	for (int i = 0; i < 4; i++) // find x-coordinate with fulled FIXED_BLOCK 
 	{
@@ -571,22 +581,22 @@ int RemoveLine()
 			fulledX[index++] = newBlock[i][0];
 	}
 
-	if (index == 0)
-		return 0;
+	if (index == 0) // Pass if it dosen't have any fulled line
+		return removeLineCount;
 
 	// Sort x-coordinates in ascending order && Deduplication
 	for (int i = 0; i < index - 1; i++)
 	{
-		for (int j = i+1; j < index; j++)
+		for (int j = i + 1; j < index; j++)
 		{
-			if (fulledX[i] > fulledX[j])
+			if (fulledX[i] > fulledX[j]) // swap for ascending
 			{
 				int temp = fulledX[i];
 				fulledX[i] = fulledX[j];
 				fulledX[j] = temp;
 			}
 
-			else if (fulledX[i] == fulledX[j])
+			else if (fulledX[i] == fulledX[j]) // put zero for deduplication
 			{
 				fulledX[j] = 0;
 			}
@@ -602,84 +612,11 @@ int RemoveLine()
 		removeLineCount++;
 	}
 
-	//for (int i = 0; i < 4; i++)
-	//{
-	//	// Sorting !!!!!!!!!!!!!!!!!
-	//	removeFlag = true;
-
-	//	for (int j = 1; j < BOARD_WIDTH; j++)
-	//	{
-	//		if (board[newBlock[i][0]][j] != FIXED_BLOCK)
-	//		{
-	//			removeFlag = false;
-	//			break;
-	//		}
-	//	}
-
-	//	if (removeFlag == true)
-	//	{
-	//		int row = newBlock[i][0] - 1;
-	//		PullLine(row); // Give x coordinate of piece of block to PullLine function.
-	//		removeLineCount++;
-	//	}
-	//}
-
-	switch (removeLineCount)
-	{
-	case 1:
-		return 100;
-
-	case 2:
-		return 300;
-
-	case 3:
-		return 500;
-
-	case 4:
-		return 800;
-
-	default:
-		return 0;
-	}
+	return removeLineCount;
 }
 
 void PullLine(int row)
 {
-	//bool pullFlag;
-
-	//for (; row != 3; row--)
-	//{
-	//	if (row == 2) // Don't pull row = 3 (ceiling line). just put EMPTY to row - 1
-	//	{
-	//		for (int i = 1; i < BOARD_WIDTH; i++)
-	//			board[row + 1][i] = EMPTY;
-
-	//		return;
-	//	}
-
-	//	pullFlag = false;
-
-	//	for (int i = 1; i < BOARD_WIDTH; i++) // If all columns in a row have at least a !EMPTY, put true to pullFlag 
-	//	{
-	//		if (board[row][i] != EMPTY)
-	//		{
-	//			pullFlag = true;
-	//			break;
-	//		}
-	//	}
-
-	//	if (pullFlag == true) // main pull logic 
-	//	{
-	//		for (int i = 1; i < BOARD_WIDTH; i++)
-	//		{
-	//			board[row + 1][i] = board[row][i];
-	//		}
-	//	}
-
-	//	else if (pullFlag == false)
-	//		return;
-	//}
-
 	bool ExitFlag;
 
 	do
@@ -720,11 +657,7 @@ void PullLine(int row)
 		}
 
 		row--;
-
 	} while (ExitFlag == false);
-
-
-
 }
 
 void RotateBlock()
@@ -981,6 +914,7 @@ void ResetGame()
 	SetBoard(); // Board && hold box && next box
 	srand(clock());
 
+	gs.gameLevel = 1;
 	gs.nowScore = 0;
 	gs.removedLine = 0;
 	gs.autoDownPassedTime = 500;
@@ -1020,13 +954,51 @@ void LoadBestScoreFile()
 		return;
 	}
 
-	fscanf_s(bestScoreFile, "%d", &gs.bestScore); 
+	fscanf_s(bestScoreFile, "%d", &gs.bestScore);
 	fclose(bestScoreFile);
 }
 
-void FixingBlockProcedure()
+void FixingBlockProcedure() // autoDown, down, space, use this function.
 {
+	int removedLine = 0;
+	int score = 0;
+	
 	FixBlock();
 	Unlock_Hold();
-	AddGameScore(RemoveLine());
+	removedLine = RemoveLine();
+
+	if (removedLine != 0)
+	{
+		gs.removedLine += removedLine;
+		score = BalancingLineScoreByLevel(removedLine);
+		AddGameScore(score);
+	}
+}
+
+int BalancingLineScoreByLevel(int removedLine)
+{
+	switch (removedLine)
+	{
+	case 1:
+		return 100 * gs.gameLevel;
+
+	case2:
+		return 300 * gs.gameLevel;
+
+	case3:
+		return 500 * gs.gameLevel;
+
+	case4:
+		return 800 * gs.gameLevel;
+
+	default:
+		return 0;
+	}
+}
+
+void LevelUpByRemovedLine()
+{
+	int level = gs.removedLine / 3;
+	gs.gameLevel = level + 1;
+	gs.autoDownPassedTime = 500 - (level * 75);
 }
