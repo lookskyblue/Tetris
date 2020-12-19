@@ -36,7 +36,7 @@ int  GetUserAnswer();
 int  RemoveLine();
 int  DropBlock();
 
-bool DetectCollision(int left, int right, int down);
+bool DetectCollision(int left, int right, int down, int(* block)[2]);
 bool DetectRotateCollision(int direction);
 bool CheckGameOver();
 
@@ -56,7 +56,7 @@ void DrawInstruction();
 void SaveBestScore();
 void DrawGameOver();
 void GetNextBlock();
-void RotateBlock(int direction);
+void RotateBlock(int direction, int(* block)[2]);
 void ChangeRotateState(int direction);
 void GetKeyInput();
 void Unlock_Hold();
@@ -237,7 +237,7 @@ void DrawBoard()
 	for (int i = 0; i < 6; i++)
 	{
 		for (int j = 0; j < 6; j++)
-		{   
+		{
 			// Draw next box
 			if (nextBox[i][j] != nextBoxCopy[i][j])
 			{
@@ -412,7 +412,7 @@ void GetKeyInput()
 
 	while (1)
 	{
-		if ((DetectCollision(0, 0, 1) == true)) // If it dectct collision && over autoFixBaseTime, active FixBlock() function
+		if ((DetectCollision(0, 0, 1, newBlock) == true)) // If it dectct collision && over autoFixBaseTime, active FixBlock() function
 		{
 			if (clock() > autoFixBaseTime + 1000)
 			{
@@ -433,13 +433,13 @@ void GetKeyInput()
 		{
 			switch (_getch())
 			{
-			/*case 'v':
-				CanWallKick(CLOCK_ROTATE);
-				break;
+				/*case 'v':
+					CanWallKick(CLOCK_ROTATE);
+					break;
 
-			case 'b':
-				CanWallKick(COUNTER_CLOCK_ROTATE);
-				break;*/
+				case 'b':
+					CanWallKick(COUNTER_CLOCK_ROTATE);
+					break;*/
 
 			case CLOCK_ROTATE: // key up
 			{
@@ -455,7 +455,7 @@ void GetKeyInput()
 
 			case LEFT:
 			{
-				if (DetectCollision(-1, 0, 0) == false)
+				if (DetectCollision(-1, 0, 0, newBlock) == false)
 				{
 					MoveBlock(-1, 0, 0);
 					DrawBoard();
@@ -466,7 +466,7 @@ void GetKeyInput()
 
 			case RIGHT:
 			{
-				if (DetectCollision(0, 1, 0) == false)
+				if (DetectCollision(0, 1, 0, newBlock) == false)
 				{
 					MoveBlock(0, 1, 0);
 					DrawBoard();
@@ -477,7 +477,7 @@ void GetKeyInput()
 
 			case DOWN:
 			{
-				if (DetectCollision(0, 0, 1) == true)
+				if (DetectCollision(0, 0, 1, newBlock) == true)
 				{
 					FixingBlockProcedure();
 					return;
@@ -544,13 +544,13 @@ void MoveBlock(int left, int right, int down)
 	}
 }
 
-bool DetectCollision(int left, int right, int down)
+bool DetectCollision(int left, int right, int down, int(* block)[2])
 {
 	int movedBlockPiece;
 
 	for (int i = 0; i < 4; i++)
 	{
-		movedBlockPiece = board[newBlock[i][0] + down][newBlock[i][1] + left + right];
+		movedBlockPiece = board[block[i][0] + down][block[i][1] + left + right];
 
 		if (movedBlockPiece == EDGE || movedBlockPiece == FIXED_BLOCK)
 			return true;
@@ -578,7 +578,7 @@ int DropBlock()
 	for (i = 0; i < 4;i++)
 		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
 
-	for (dropCount = 1; DetectCollision(0, 0, dropCount) == false; dropCount++);
+	for (dropCount = 1; DetectCollision(0, 0, dropCount, newBlock) == false; dropCount++);
 
 	for (i = 0, dropCount--; i < 4; i++)
 		newBlock[i][0] += dropCount;
@@ -652,7 +652,7 @@ int RemoveLine()
 	{
 		if (fulledX[i] == 0)
 			continue;
-		
+
 		PullLine(fulledX[i] - 1);
 		removeLineCount++;
 	}
@@ -694,7 +694,7 @@ void ActiveRemoveLineEffect(const int* const x, int index)
 		DrawBoard();
 		Sleep(50);
 	}
-	
+
 	if (gs.soundOn == true)
 		Beep(100, 100); // 100, 100 GOOD
 }
@@ -754,9 +754,9 @@ void PullLine(int row)
 	} while (ExitFlag == false);
 }
 
-void RotateBlock(int direction)
+void RotateBlock(int direction, int(* block)[2])
 {
-	// square block is already returned in DetectRotateCollision function
+	// square block is already returned 
 	int(*rotate_Info)[2] = NULL;
 	int maxCell;
 	int startX;
@@ -767,7 +767,7 @@ void RotateBlock(int direction)
 	/////////////////
 	int x = 0, y = 1, mul = 1;
 
-	if(direction == COUNTER_CLOCK_ROTATE)
+	if (direction == COUNTER_CLOCK_ROTATE)
 	{
 		x = 1;
 		y = 0;
@@ -786,13 +786,10 @@ void RotateBlock(int direction)
 	else // the others
 	{
 		rotate_Info = c_Rotate_Info_Others;
-		startX = newBlock[2][0] - 1;
-		startY = newBlock[2][1] - 1;
+		startX = block[2][0] - 1;
+		startY = block[2][1] - 1;
 		maxCell = 3;
 	}
-
-	for (i = 0; i < 4; i++)
-		board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
 
 	for (k = 0; k < 4; k++)
 	{
@@ -802,10 +799,10 @@ void RotateBlock(int direction)
 		{
 			for (j = startY; j < startY + maxCell; j++)
 			{
-				if (newBlock[k][0] == i && newBlock[k][1] == j)
+				if (block[k][0] == i && block[k][1] == j)
 				{
-					newBlock[k][0] += rotate_Info[index][x];
-					newBlock[k][1] += rotate_Info[index][y] * mul;
+					block[k][0] += rotate_Info[index][x];
+					block[k][1] += rotate_Info[index][y] * mul;
 
 					goto GET_NEW_K; // escape for getting k++
 				}
@@ -816,18 +813,11 @@ void RotateBlock(int direction)
 
 	GET_NEW_K:;
 	}
-
-	for (i = 0; i < 4; i++)
-		board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
-
-	ChangeRotateState(direction);
 }
 
 bool DetectRotateCollision(int direction)
 {
-	if (gs.nowBlockType == 5) // square block dosen't rotate.
-		return true;
-
+	// square block is already returned 
 	int(*rotate_Info)[2] = NULL;
 	int maxCell;
 	int startX;
@@ -905,12 +895,12 @@ bool CheckGameOver()
 }
 
 void DrawGameOver()
-{   
+{
 	int i, j;
 	LoadBestScoreFile();
 
 	// game over effect - paint all blocks
-	for (i = 0; i < BOARD_HEIGHT; i++)   
+	for (i = 0; i < BOARD_HEIGHT; i++)
 	{
 		for (int j = 1; j < BOARD_WIDTH; j++)
 		{
@@ -923,7 +913,7 @@ void DrawGameOver()
 	}
 
 	// game over effect - blink string
-	for (i = 0; i < 2; i++) 
+	for (i = 0; i < 2; i++)
 	{
 		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 2);
 		printf("          ");
@@ -944,7 +934,7 @@ void DrawGameOver()
 	{
 		for (j = 1; j < BOARD_WIDTH; j++)
 		{
-			board[8+i][j] = EMPTY;
+			board[8 + i][j] = EMPTY;
 		}
 	}
 
@@ -1106,7 +1096,7 @@ void FixingBlockProcedure() // autoDown, down, space logic, use this function.
 {
 	int removedLine = 0;
 	int score = 0;
-	
+
 	FixBlock();
 	Unlock_Hold();
 	removedLine = RemoveLine();
@@ -1284,24 +1274,44 @@ void ChangeRotateState(int direction)
 
 void RotationByDirection(int direction)
 {
+	if (gs.nowBlockType == 5)
+		return;
+
 	if (DetectRotateCollision(direction) == false)
 	{
-		RotateBlock(direction);
+		for (int i = 0; i < 4; i++)
+			board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
+
+		RotateBlock(direction, newBlock);
+
+		for (int i = 0; i < 4; i++)
+			board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
+
+		ChangeRotateState(direction);
 		DrawBoard();
 	}
 
 	else // if detect rotate collision, active wall kick function
 	{
+		/*if (CanWallKick(direction) == false)
+			WallKick(direction);*/
 		if (CanWallKick(direction) == true)
-			WallKick(direction);
+			ChangeRotateState(direction);
 	}
 
 }
 
 bool CanWallKick(int direction)
 {
+	if (gs.nowBlockType == 5)
+		return false;
+
+	int newBlockCopy[4][2];
 	int nextState = gs.rotateState;
+	int(*testCase)[4][2] = NULL;
 	int conventionValues;
+
+	memcpy(newBlockCopy, newBlock, sizeof(newBlock));
 
 	if (direction == CLOCK_ROTATE)
 	{
@@ -1317,19 +1327,43 @@ bool CanWallKick(int direction)
 
 	conventionValues = convention[gs.rotateState][nextState];
 
-	// 바 블럭, 나머지 블럭 두분류로 나눠서 테스트 값 가져와야해. 컨벤션 밸류는 공통으로 써
-	
-	if (gs.nowBlockType == 6) // bar block
-	{
-		for (int i = 0; i < 4; i++)
-		{
-
-		}
-	}
+	if (gs.nowBlockType == 6)
+		testCase = barTestCase;
 
 	else
-	{
+		testCase = othersTestCase;
 
+	RotateBlock(direction, newBlockCopy);
+
+	for (int i = 0; i < 4; i++) 
+	{
+		int x = testCase[conventionValues][i][0];
+		int y = testCase[conventionValues][i][1];
+
+		/*printf("blockType: %d, i: %d x: %d, y: %d, CV: %d  ", gs.nowBlockType, i, x, y, conventionValues);
+		Sleep(3000);*/
+
+		if (DetectCollision(y, 0, x, newBlockCopy) == false)
+		{
+			for (int i = 0; i < 4; i++)
+				board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
+
+			RotateBlock(direction, newBlock);
+			///////////////////////////////////////////// move 개념
+			for (i = 0; i < 4; i++)
+				board[newBlock[i][0] += x][newBlock[i][1] += (y)] = NEW_BLOCK;
+
+			if (gs.nowBlockType == 6)
+			{
+				barAxisX += x;
+				barAxisY += y;
+			}
+			/////////////////////////////////////////////////
+			/*for (int i = 0; i < 4; i++)
+				board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;*/
+
+			return true;
+		}
 	}
 
 	return false;
@@ -1337,6 +1371,7 @@ bool CanWallKick(int direction)
 
 void WallKick(int direction)
 {
+
 
 
 	// gs.rotateState 쁠쁠; 월킥도 회전이니 회전값 ++ 해줘
