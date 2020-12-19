@@ -16,7 +16,8 @@
 #define SPACE 32
 #define LEFT 75
 #define RIGHT 77
-#define UP 72
+#define COUNTER_CLOCK_ROTATE 72 // ascii up key.  // 대문자 H도 아스키 72라서 Up 키로 인식됨.. 키입력은 getch 두번 받아서 해
+#define CLOCK_ROTATE 122 // ascii 'z'
 #define DOWN 80
 #define HOLD 99 // alp 'c'
 #define STOP 0
@@ -26,7 +27,7 @@
 #define OFFSET_Y 3
 #define FIRST_HOLD -1
 #define SOUND_TOGGLE 109 // alp 'm' 
-#define CHAGE_BLOCK_COLOR 9 // tab
+#define CHANGE_BLOCK_COLOR 9 // tab
 
 int  BalancingLineScoreByLevel(int removedLine);
 int  GetUserAnswer();
@@ -308,10 +309,10 @@ void DrawBoard()
 	GoToXY(OFFSET_X - 8, OFFSET_Y + 19);
 	printf("%d", gs.removedLine);
 
-	GoToXY(OFFSET_X + 14, OFFSET_Y + 9);
+	GoToXY(OFFSET_X + 14, OFFSET_Y + 17);
 	printf("Sound On/Off: M");
 
-	GoToXY(OFFSET_X + 14, OFFSET_Y + 11);
+	GoToXY(OFFSET_X + 14, OFFSET_Y + 19);
 	printf("Change Color: TAB");
 }
 
@@ -420,7 +421,7 @@ void GetKeyInput()
 		{
 			switch (_getch())
 			{
-			case UP:
+			case COUNTER_CLOCK_ROTATE:
 			{
 				if (RotateDetectCollision() == false)
 				{
@@ -429,6 +430,12 @@ void GetKeyInput()
 				}
 
 				break;
+			}
+
+			case CLOCK_ROTATE:
+			{
+				break;
+
 			}
 
 			case LEFT:
@@ -494,7 +501,7 @@ void GetKeyInput()
 				SoundToggle();
 				break;
 
-			case CHAGE_BLOCK_COLOR:
+			case CHANGE_BLOCK_COLOR:
 				ChangeBlockColor();
 				break;
 
@@ -1124,8 +1131,8 @@ void SoundToggle()
 
 void DrawInstruction()
 {
-	puts("\n  [ TETRIS   GAME ]\n");
-	puts("\n   ▼  GUIDE  ▼ \n");
+	puts("\n\n\n\n\n  [ TETRIS   GAME ]");
+	puts("\n   ▼  KEY  ▼ \n");
 	puts("   Sound  On/Off: M");
 	puts("   Change Color: TAB\n");
 	puts("   Left:   ←");
@@ -1134,7 +1141,7 @@ void DrawInstruction()
 	puts("   Rotate: ↑");
 	puts("   Hold:    C");
 	puts("   Drop:  SPACE");
-	puts("\n   ▲  GUIDE  ▲ \n");
+	puts("\n   ▲  KEY  ▲ \n\n\n\n\n");
 	puts("   Git: github.com/lookskyblue/Tetris");
 
 	while (1)
@@ -1143,11 +1150,11 @@ void DrawInstruction()
 			if (tolower(_getch()) == 'a')
 				return;
 
-		GoToXY(0, 20);
+		GoToXY(0, 21);
 		printf("   Game Start: Press A");
 		Sleep(350);
 
-		GoToXY(0, 20);
+		GoToXY(0, 21);
 		printf("                      ");
 		Sleep(350);
 	}
