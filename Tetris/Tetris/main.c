@@ -30,17 +30,22 @@
 #define FIRST_HOLD -1
 #define SOUND_TOGGLE 109 // alp 'm' 
 #define CHANGE_BLOCK_COLOR 9 // tab
+#define SIDE_BOX_SIZE 6
 
 int  BalancingLineScoreByLevel(int removedLine);
 int  GetUserAnswer();
 int  RemoveLine();
 int  DropBlock();
 
-bool DetectCollision(int left, int right, int down, int(* block)[2]);
+bool DetectCollision(int left, int right, int down, int(*block)[2]);
+bool AutomaticBlockDown(int* const autoFixBaseTime, int* const autoDownBaseTime);
 bool DetectRotateCollision(int direction);
 bool CheckGameOver();
 
 void ActiveRemoveLineEffect(const int* const x, int index);
+void EG1();
+void EG2();
+void EGKey(int EGNum);
 void MoveBlock(int left, int right, int down);
 void RotationByDirection(int direction);
 void AddGameScore(int score);
@@ -56,44 +61,48 @@ void DrawInstruction();
 void SaveBestScore();
 void DrawGameOver();
 void GetNextBlock();
-void RotateBlock(int direction, int(* block)[2]);
-void ChangeRotateState(int direction);
+void RotateBlock(int direction, int(*block)[2]);
+void ChangeRotateState(int direction, int* const state);
 void GetKeyInput();
 void Unlock_Hold();
 void SoundToggle();
-bool CanWallKick(int direction);
 void HideCursor();
 void Hold_Block();
 void DrawBoard();
+int  CheckSevenBag();
 void SetBoard();
-void WallKick(int direction);
+bool WallKick(int direction);
 void FixBlock();
+void AddComma(char* result, int score);
 
 typedef struct GameSetting
 {
-	int  rotateState; // 1: clockWise, 2: counterClockWise
+	int  rotateState;
 	int  blockColorNum;
 	int  gameLevel;
 	int  removedLine;
 	int  nowScore;
 	int  nextBlockType;
 	int  nowBlockType;
-	int  heldBlockType; // FIRST_HOLD
-	int  autoDownPassedTime; // 500
+	int  heldBlockType; // Init FIRST_HOLD
+	double  autoDownPassedTime;
+	int  autoFixPassedTime;
 	int  bestScore;
+	int  sevenBagIndex;
+	int  sevenBag[7];
 	bool isLevelUp;
-	bool hold_Lock; // false
-	bool isExecutedHold; // false
-	bool isNextBlockEmpty; // true
+	bool hold_Lock; // Init false
+	bool isExecutedHold; // Init false
+	bool isNextBlockEmpty; // Init true
 	bool soundOn;
 }GAMESETTING;
 
 int boardCopy[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int board[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
-int holdBoxCopy[6][6] = { EMPTY, };
-int holdBox[6][6] = { EMPTY, };
-int nextBoxCopy[6][6] = { EMPTY, };
-int nextBox[6][6] = { EMPTY, };
+int holdBoxCopy[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
+int holdBox[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
+int nextBoxCopy[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
+int nextBox[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
 int newBlock[4][2];
 int barAxisX;
 int barAxisY;
@@ -168,22 +177,23 @@ void SetBoard()
 	board[2][BOARD_WIDTH] = EDGE;
 
 	// Set hold box and next box
-	for (i = 0; i < 6; i++)
+	for (i = 0; i < SIDE_BOX_SIZE; i++)
 	{
 		holdBox[i][0] = FIXED_BLOCK;
-		holdBox[i][5] = FIXED_BLOCK;
+		holdBox[i][SIDE_BOX_SIZE - 1] = FIXED_BLOCK;
 		holdBox[0][i] = FIXED_BLOCK;
-		holdBox[5][i] = FIXED_BLOCK;
+		holdBox[SIDE_BOX_SIZE - 1][i] = FIXED_BLOCK;
 
 		nextBox[i][0] = FIXED_BLOCK;
-		nextBox[i][5] = FIXED_BLOCK;
+		nextBox[i][SIDE_BOX_SIZE - 1] = FIXED_BLOCK;
 		nextBox[0][i] = FIXED_BLOCK;
-		nextBox[5][i] = FIXED_BLOCK;
+		nextBox[SIDE_BOX_SIZE - 1][i] = FIXED_BLOCK;
 	}
 }
 
 void DrawBoard()
 {
+	char scoreAddComma[20];
 	// Draw main game board
 	for (int i = 0; i <= BOARD_HEIGHT; i++)
 	{
@@ -233,10 +243,10 @@ void DrawBoard()
 	GoToXY(OFFSET_X - 7, OFFSET_Y + 0);
 	printf("H O L D");
 
-	// Draw next box
-	for (int i = 0; i < 6; i++)
+	// Draw side box
+	for (int i = 0; i < SIDE_BOX_SIZE; i++)
 	{
-		for (int j = 0; j < 6; j++)
+		for (int j = 0; j < SIDE_BOX_SIZE; j++)
 		{
 			// Draw next box
 			if (nextBox[i][j] != nextBoxCopy[i][j])
@@ -300,30 +310,28 @@ void DrawBoard()
 	printf("NOW SCORE");
 
 	GoToXY(OFFSET_X - 8, OFFSET_Y + 11);
-	printf("%d", gs.nowScore);
+	AddComma(scoreAddComma, gs.nowScore);
+	printf("%s", scoreAddComma);
 
 	// Draw level
 	GoToXY(OFFSET_X - 8, OFFSET_Y + 13);
-	printf("Level");
+	printf("LEVEL");
 
 	GoToXY(OFFSET_X - 8, OFFSET_Y + 15);
 	printf("%d", gs.gameLevel);
 
 	// Draw lines
 	GoToXY(OFFSET_X - 8, OFFSET_Y + 17);
-	printf("Lines");
+	printf("LINES");
 
 	GoToXY(OFFSET_X - 8, OFFSET_Y + 19);
 	printf("%d", gs.removedLine);
 
 	GoToXY(OFFSET_X + 14, OFFSET_Y + 17);
-	printf("Sound On/Off: M");
+	printf("SOUND ON/OFF: M");
 
 	GoToXY(OFFSET_X + 14, OFFSET_Y + 19);
-	printf("Change Color: TAB");
-
-	GoToXY(OFFSET_X + 14, OFFSET_Y + 20);
-	printf("%d ", gs.rotateState);
+	printf("COLOR: TAB");
 }
 
 void GetNextBlock()
@@ -376,7 +384,7 @@ void CreateNextBlock()
 	int nextBlockPrototype[4][2];
 
 	srand(clock());
-	gs.nextBlockType = rand() % 7;
+	gs.nextBlockType = CheckSevenBag();
 	memcpy(nextBlockPrototype, blocks[gs.nextBlockType], sizeof(blocks[gs.nextBlockType]));
 
 	for (int i = 1; i < 5; i++)
@@ -412,35 +420,13 @@ void GetKeyInput()
 
 	while (1)
 	{
-		if ((DetectCollision(0, 0, 1, newBlock) == true)) // If it dectct collision && over autoFixBaseTime, active FixBlock() function
-		{
-			if (clock() > autoFixBaseTime + 1000)
-			{
-				FixingBlockProcedure();
-				return;
-			}
-		}
-
-		else if (clock() > autoDownBaseTime + gs.autoDownPassedTime) // If it dosen't collide yet, down a block automatically  
-		{
-			autoDownBaseTime = clock();
-			autoFixBaseTime = clock();
-			MoveBlock(0, 0, 1);
-			DrawBoard();
-		}
+		if (AutomaticBlockDown(&autoDownBaseTime, &autoFixBaseTime) == true)
+			return;
 
 		if (_kbhit())
 		{
 			switch (_getch())
 			{
-				/*case 'v':
-					CanWallKick(CLOCK_ROTATE);
-					break;
-
-				case 'b':
-					CanWallKick(COUNTER_CLOCK_ROTATE);
-					break;*/
-
 			case CLOCK_ROTATE: // key up
 			{
 				RotationByDirection(CLOCK_ROTATE);
@@ -520,6 +506,14 @@ void GetKeyInput()
 				ChangeBlockColor();
 				break;
 
+			case 'q':
+				EG1();
+				break;
+
+			case 'b':
+				EG2();
+				break;
+
 			default:
 				break;
 			}
@@ -544,7 +538,7 @@ void MoveBlock(int left, int right, int down)
 	}
 }
 
-bool DetectCollision(int left, int right, int down, int(* block)[2])
+bool DetectCollision(int left, int right, int down, int(*block)[2])
 {
 	int movedBlockPiece;
 
@@ -664,7 +658,7 @@ void ActiveRemoveLineEffect(const int* const x, int index)
 {
 	int i, j, k;
 
-	for (k = 0; k < 3; k++)
+	for (k = 0; k < 2; k++)
 	{
 		for (i = 0; i < index; i++)
 		{
@@ -754,7 +748,7 @@ void PullLine(int row)
 	} while (ExitFlag == false);
 }
 
-void RotateBlock(int direction, int(* block)[2])
+void RotateBlock(int direction, int(*block)[2])
 {
 	// square block is already returned 
 	int(*rotate_Info)[2] = NULL;
@@ -897,7 +891,10 @@ bool CheckGameOver()
 void DrawGameOver()
 {
 	int i, j;
+	char scoreAddComma[20];
+
 	LoadBestScoreFile();
+	AddComma(scoreAddComma, gs.bestScore);
 
 	// game over effect - paint all blocks
 	for (i = 0; i < BOARD_HEIGHT; i++)
@@ -915,18 +912,18 @@ void DrawGameOver()
 	// game over effect - blink string
 	for (i = 0; i < 2; i++)
 	{
-		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 2);
+		GoToXY(OFFSET_X + 3, OFFSET_Y - 2);
 		printf("          ");
 
-		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)), OFFSET_Y - 1);
+		GoToXY(OFFSET_X + 3, OFFSET_Y - 1);
 		printf("           ");
 		Sleep(250);
 
-		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)) - 1, OFFSET_Y - 2);
+		GoToXY(OFFSET_X + 3, OFFSET_Y - 2);
 		printf("BEST SCORE");
 
-		GoToXY((OFFSET_X + (BOARD_WIDTH / 2)), OFFSET_Y - 1);
-		printf("%d", gs.bestScore);
+		GoToXY(OFFSET_X + 3, OFFSET_Y - 1);
+		printf("%s", scoreAddComma);
 		Sleep(250);
 	}
 
@@ -950,10 +947,10 @@ void DrawGameOver()
 		Sleep(350);
 
 		GoToXY(OFFSET_X + 3, OFFSET_Y + 9);
-		printf("A  : AGAIN");
+		printf("AGAIN: A");
 
 		GoToXY(OFFSET_X + 3, OFFSET_Y + 11);
-		printf("ESC: STOP");
+		printf("EXIT: ESC");
 		Sleep(350);
 	}
 }
@@ -1026,6 +1023,9 @@ void Unlock_Hold()
 void AddGameScore(int score)
 {
 	gs.nowScore += score;
+
+	if (gs.nowScore == 100 || gs.nowScore == 200)
+		EG1();
 }
 
 void InitGameSetting()
@@ -1039,21 +1039,20 @@ void InitGameSetting()
 	memset(&nextBox, 0, sizeof(nextBox));
 	memset(&nextBoxCopy, 0, sizeof(nextBoxCopy));
 	memset(&newBlock, 0, sizeof(newBlock));
+	memset(&gs.sevenBag, -1, sizeof(gs.sevenBag));
 	LoadBestScoreFile();
 	SetBoard(); // Board && hold box && next box
 
 	gs.gameLevel = 1;
+	gs.sevenBagIndex = 0;
 	gs.nowScore = 0;
 	gs.removedLine = 0;
 	gs.autoDownPassedTime = 1000;
-	gs.rotateState = 0;  // 없어도 될 듯
-	gs.nowBlockType;
-	gs.nextBlockType;
+	gs.autoFixPassedTime = 1000;
 	gs.heldBlockType = FIRST_HOLD;
 	gs.hold_Lock = false;
 	gs.isExecutedHold = false;
 	gs.isNextBlockEmpty = true;
-	gs.bestScore;
 	gs.isLevelUp = false;
 	gs.soundOn = true;
 	gs.blockColorNum = 7;
@@ -1132,12 +1131,26 @@ int BalancingLineScoreByLevel(int removedLine)
 
 void LevelUpByRemovedLine()
 {
-	int minimumPassedTime = 50;
-	int speedUpRatio = 2; // I think 1~3 is good 
-	int levelUp_Per_FiveLines = 5; // 3~5 is good. 10 is so long game..
-	int level = (gs.removedLine / levelUp_Per_FiveLines) + 1;
+	double speedUpRatio = 0.1; // I think Init value 0.1 ~ 0.3 is good 
+	int levelUp_Per_Lines = 5; // 4~6 is good. 10 is so long game..
+	int minimumPassedTime = 10;
+	int level = (gs.removedLine / levelUp_Per_Lines) + 1;
 
-	while (gs.gameLevel != level)
+	if (5 <= level && level <= 9)
+		speedUpRatio = 0.09;
+
+	else if (10 <= level && level <= 14)
+		speedUpRatio = 0.07;
+
+	else if (15 <= level && level <= 19)
+		speedUpRatio = 0.05;
+
+	else if (20 <= level && level <= 24)
+		speedUpRatio = 0.03;
+
+	// else 0.02; 밸런스 조정 다시 생각해볼 것...
+
+	while (gs.gameLevel < level)
 	{
 		gs.gameLevel++;
 
@@ -1147,8 +1160,11 @@ void LevelUpByRemovedLine()
 			break;
 		}
 
-		gs.autoDownPassedTime -= (gs.autoDownPassedTime / 10) * speedUpRatio;
+		gs.autoDownPassedTime -= gs.autoDownPassedTime * speedUpRatio;
 	}
+
+	GoToXY(OFFSET_X + 14, OFFSET_Y + 21);
+	printf("%lf           ", gs.autoDownPassedTime);
 }
 
 void SoundToggle()
@@ -1165,7 +1181,8 @@ void DrawInstruction()
 	puts("   Left:   ←");
 	puts("   Right:  →");
 	puts("   Down:   ↓");
-	puts("   Rotate: ↑");
+	puts("   Rotate RIGHT: ↑");
+	puts("   Rotate LEFT: Z");
 	puts("   Hold:    C");
 	puts("   Drop:  SPACE");
 	puts("\n   ▲  KEY  ▲ \n\n\n\n\n");
@@ -1177,11 +1194,11 @@ void DrawInstruction()
 			if (tolower(_getch()) == 'a')
 				return;
 
-		GoToXY(0, 21);
+		GoToXY(0, 22);
 		printf("   Game Start: Press A");
 		Sleep(350);
 
-		GoToXY(0, 21);
+		GoToXY(0, 22);
 		printf("                      ");
 		Sleep(350);
 	}
@@ -1257,18 +1274,18 @@ void ChangeBlockColor()
 	}
 }
 
-void ChangeRotateState(int direction)
+void ChangeRotateState(int direction, int* const state)
 {
 	if (direction == CLOCK_ROTATE)
 	{
-		if (++gs.rotateState >= 4)
-			gs.rotateState = 0;
+		if (++(*state) >= 4)
+			*state = 0;
 	}
 
 	else
 	{
-		if (--gs.rotateState <= -1)
-			gs.rotateState = 3;
+		if (--(*state) <= -1)
+			*state = 3;
 	}
 }
 
@@ -1287,44 +1304,31 @@ void RotationByDirection(int direction)
 		for (int i = 0; i < 4; i++)
 			board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
 
-		ChangeRotateState(direction);
 		DrawBoard();
+		ChangeRotateState(direction, &gs.rotateState);
 	}
 
 	else // if detect rotate collision, active wall kick function
 	{
-		/*if (CanWallKick(direction) == false)
-			WallKick(direction);*/
-		if (CanWallKick(direction) == true)
-			ChangeRotateState(direction);
+		if (WallKick(direction) == true)
+		{
+			DrawBoard();
+			ChangeRotateState(direction, &gs.rotateState);
+		}
 	}
-
 }
 
-bool CanWallKick(int direction)
+bool WallKick(int direction)
 {
-	if (gs.nowBlockType == 5)
-		return false;
-
 	int newBlockCopy[4][2];
 	int nextState = gs.rotateState;
 	int(*testCase)[4][2] = NULL;
 	int conventionValues;
+	int i, j, x, y;
 
 	memcpy(newBlockCopy, newBlock, sizeof(newBlock));
-
-	if (direction == CLOCK_ROTATE)
-	{
-		if (++nextState >= 4)
-			nextState = 0;
-	}
-
-	else
-	{
-		if (--nextState <= -1)
-			nextState = 3;
-	}
-
+	RotateBlock(direction, newBlockCopy);
+	ChangeRotateState(direction, &nextState);
 	conventionValues = convention[gs.rotateState][nextState];
 
 	if (gs.nowBlockType == 6)
@@ -1333,34 +1337,26 @@ bool CanWallKick(int direction)
 	else
 		testCase = othersTestCase;
 
-	RotateBlock(direction, newBlockCopy);
-
-	for (int i = 0; i < 4; i++) 
+	for (i = 0; i < 4; i++)
 	{
-		int x = testCase[conventionValues][i][0];
-		int y = testCase[conventionValues][i][1];
-
-		/*printf("blockType: %d, i: %d x: %d, y: %d, CV: %d  ", gs.nowBlockType, i, x, y, conventionValues);
-		Sleep(3000);*/
+		x = testCase[conventionValues][i][0];
+		y = testCase[conventionValues][i][1];
 
 		if (DetectCollision(y, 0, x, newBlockCopy) == false)
 		{
-			for (int i = 0; i < 4; i++)
-				board[newBlock[i][0]][newBlock[i][1]] = EMPTY;
+			for (j = 0; j < 4; j++)
+				board[newBlock[j][0]][newBlock[j][1]] = EMPTY;
 
-			RotateBlock(direction, newBlock);
-			///////////////////////////////////////////// move 개념
-			for (i = 0; i < 4; i++)
-				board[newBlock[i][0] += x][newBlock[i][1] += (y)] = NEW_BLOCK;
+			memcpy(newBlock, newBlockCopy, sizeof(newBlock));
+
+			for (j = 0; j < 4; j++)
+				board[newBlock[j][0] += x][newBlock[j][1] += y] = NEW_BLOCK;
 
 			if (gs.nowBlockType == 6)
 			{
 				barAxisX += x;
 				barAxisY += y;
 			}
-			/////////////////////////////////////////////////
-			/*for (int i = 0; i < 4; i++)
-				board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;*/
 
 			return true;
 		}
@@ -1369,11 +1365,169 @@ bool CanWallKick(int direction)
 	return false;
 }
 
-void WallKick(int direction)
+int CheckSevenBag()
 {
+	int blockType;
+	bool putFlag;
 
+	do
+	{
+		putFlag = true;
+		srand(clock());
+		blockType = rand() % 7;
 
+		for (int i = 0; i < gs.sevenBagIndex; i++)
+		{
+			if (gs.sevenBag[i] == blockType)
+			{
+				putFlag = false;
+				break;
+			}
+		}
 
-	// gs.rotateState 쁠쁠; 월킥도 회전이니 회전값 ++ 해줘
+		if (putFlag == true)
+		{
+			gs.sevenBag[gs.sevenBagIndex++] = blockType;
+
+			if (gs.sevenBagIndex == 7)
+			{
+				memset(&gs.sevenBag, -1, sizeof(gs.sevenBag));
+				gs.sevenBagIndex = 0;
+			}
+
+			return blockType;
+		}
+
+	} while (1);
 }
 
+bool AutomaticBlockDown(int* const autoFixBaseTime, int* const autoDownBaseTime)
+{
+	if ((DetectCollision(0, 0, 1, newBlock) == true)) // If it dectct collision && over autoFixBaseTime, active FixBlock() function
+	{
+		if (clock() > * autoFixBaseTime + gs.autoFixPassedTime)
+		{
+			FixingBlockProcedure();
+			return true;
+		}
+
+		return false;
+	}
+
+	else if (clock() > * autoDownBaseTime + gs.autoDownPassedTime) // If it dosen't collide yet, down a block automatically  
+	{
+		*autoDownBaseTime = clock();
+		*autoFixBaseTime = clock();
+		MoveBlock(0, 0, 1);
+		DrawBoard();
+		return false;
+	}
+
+	return false;
+}
+
+void AddComma(char* scoreAddComma, int score)
+{
+	char str[20];
+	char* p = str;
+	int maxStr = 0;
+	int scoreCopy = score;
+
+	for (maxStr++; (scoreCopy /= 10) != 0; maxStr++);
+
+	for (int i = 0; i < maxStr; i++)
+	{
+		if (i && (i % 3) == 0)
+			*p++ = ',';
+
+		*p++ = score % 10 + '0'; // '0' 아스키코드로 더해지지 않는가??
+		score /= 10;
+	}
+
+	p--;
+
+	while (p >= str)
+		*scoreAddComma++ = *p--;
+
+	*scoreAddComma = 0;
+}
+
+void EG1()
+{
+	char msg[5][50] = {
+		"You got exactly ",
+		" points. Congratulations!",
+		"\nI'll remove all fixed block.",
+		"\nPlease press 'Q'",
+		"\nHave a nice game :)"
+	};
+
+	system("cls");
+
+	for (int i = 0; i < 5; i++)
+	{
+		int length = strlen(msg[i]);
+
+		if (i == 1)
+			printf("%d", gs.nowScore);
+
+		for (int j = 0; j < length; j++)
+		{
+			printf("%c", msg[i][j]);
+			Sleep(85);
+		}
+	}
+
+	EGKey(1);
+}
+
+void EG2()
+{
+	char msg[3][40] = { 
+		"Great! You found a hidden key.", 
+		"\nBut it has no function.", 
+		"\nPlease press 'q' :)" 
+	};
+
+	system("cls");
+
+	for (int i = 0; i < 3; i++)
+	{
+		int length = strlen(msg[i]);
+
+		for (int j = 0; j < length; j++)
+		{
+			printf("%c", msg[i][j]);
+			Sleep(100);
+		}
+	}
+
+	EGKey(2);
+}
+
+void EGKey(int EGNum)
+{
+	while (1)
+	{
+		if (_kbhit())
+		{
+			if (_getch() == 'q')
+			{
+				system("cls");
+
+				if (EGNum == 1)
+				{
+					memset(&board, 0, sizeof(board));
+					SetBoard();
+				}
+
+				memset(&boardCopy, 0, sizeof(boardCopy));
+				memset(&holdBoxCopy, 0, sizeof(holdBoxCopy));
+				memset(&nextBoxCopy, 0, sizeof(nextBoxCopy));
+				DrawBoard();
+
+				return;
+			}
+		}
+	}
+}
