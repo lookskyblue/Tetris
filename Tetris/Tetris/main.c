@@ -1186,6 +1186,9 @@ void DrawFirstScreen()
 
 	while (1)
 	{
+		GoToXY(offSetX, offSetY - 10);
+		puts("[ TETRIS GAME ]");
+
 		if (choice > METHOD)
 			choice = START;
 
