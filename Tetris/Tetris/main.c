@@ -8,44 +8,49 @@
 #include "rotate_info.h"
 #include "wall_kick_convention.h"
 
-#define BOARD_HEIGHT 23
-#define BOARD_WIDTH 11
-#define CEILING -2
-#define EDGE -1
-#define EMPTY 0
-#define NEW_BLOCK 1
-#define FIXED_BLOCK 2
-#define SPACE 32
-#define LEFT 75
-#define RIGHT 77
 #define COUNTER_CLOCK_ROTATE 122 // ascii 122 'z'
-#define CLOCK_ROTATE 72 // ascii up key.  // 대문자 H도 아스키 72라서 Up 키로 인식됨.. 키입력은 getch 두번 받아서 해
-#define DOWN 80
-#define HOLD 99 // alp 'c'
-#define STOP 0
-#define AGAIN 97 // alp 'a'
-#define ESC 27
+#define CHANGE_BLOCK_COLOR 9     // tab
+#define SOUND_TOGGLE 109         // alp 'm' 
+#define CLOCK_ROTATE 72          // ascii up key.
+#define BOARD_HEIGHT 23
+#define SIDE_BOX_SIZE 6
+#define BOARD_WIDTH 11
+#define FIXED_BLOCK 2
+#define FIRST_HOLD -1
+#define NEW_BLOCK 1
+#define CEILING -2
 #define OFFSET_X 13
 #define OFFSET_Y 3
-#define FIRST_HOLD -1
-#define SOUND_TOGGLE 109 // alp 'm' 
-#define CHANGE_BLOCK_COLOR 9 // tab
-#define SIDE_BOX_SIZE 6
+#define RIGHT 77
+#define AGAIN 97                 // alp 'a'
+#define SPACE 32
+#define ENTER 13
+#define EDGE -1
+#define EMPTY 0
+#define LEFT 75
+#define DOWN 80
+#define HOLD 99                  // alp 'c'
+#define STOP 0
+#define ESC 27
 
 int  BalancingLineScoreByLevel(int removedLine);
 int  GetUserAnswer();
 int  RemoveLine();
 int  DropBlock();
 
+bool AutomaticBlockDown(int* const autoDownBaseTime, int* const autoFixBaseTime);
 bool DetectCollision(int RightOrLeft, int down, int(*block)[2]);
-bool AutomaticBlockDown(int* const autoFixBaseTime, int* const autoDownBaseTime);
 bool DetectRotateCollision(int direction);
+bool WallKick(int direction);
 bool CheckGameOver();
 
+void MoveRightOrLeft(int direction, int* const autoFixBaseTime);
 void ActiveRemoveLineEffect(const int* const x, int index);
-
+void ChangeRotateState(int direction, int* const state);
+void RotateBlock(int direction, int(*block)[2]);
 void MoveBlock(int RightOrLeft, int down);
 void RotationByDirection(int direction);
+void AddComma(char* result, int score);
 void AddGameScore(int score);
 void FixingBlockProcedure();
 void LevelUpByRemovedLine();
@@ -55,25 +60,21 @@ void ChangeBlockColor();
 void CreateNextBlock();
 void PullLine(int row);
 void InitGameSetting();
-void DrawInstruction();
+void DrawFirstScreen();
+void EGKey(int EGNum);
+void DrawHowToPlay();
 void SaveBestScore();
+int  CheckSevenBag();
 void DrawGameOver();
 void GetNextBlock();
-void RotateBlock(int direction, int(*block)[2]);
-void ChangeRotateState(int direction, int* const state);
-void MoveRightOrLeft(int direction, int* const autoFixBaseTime);
 void GetKeyInput();
 void Unlock_Hold();
 void SoundToggle();
 void HideCursor();
 void Hold_Block();
 void DrawBoard();
-int  CheckSevenBag();
 void SetBoard();
-bool WallKick(int direction);
 void FixBlock();
-void AddComma(char* result, int score);
-void EGKey(int EGNum);
 void EG1();
 void EG2();
 
@@ -88,7 +89,7 @@ typedef struct GameSetting
 	int  nowBlockType;
 	int  heldBlockType; // Init FIRST_HOLD
 	double  autoDownPassedTime;
-	int  autoFixPassedTime;
+	double  autoFixPassedTime;
 	int  bestScore;
 	int  sevenBagIndex;
 	int  sevenBag[7];
@@ -99,7 +100,6 @@ typedef struct GameSetting
 	bool soundOn;
 }GAMESETTING;
 
-double clockShortenRatio;
 int boardCopy[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int board[BOARD_HEIGHT + 1][BOARD_WIDTH + 1] = { EMPTY, };
 int holdBoxCopy[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
@@ -108,10 +108,10 @@ int nextBoxCopy[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
 int nextBox[SIDE_BOX_SIZE][SIDE_BOX_SIZE] = { EMPTY, };
 int newBlock[4][2];
 int wallKickCount;
-clock_t wallKickLockTime;
 int barAxisX;
 int barAxisY;
 bool isWallKickLock;
+clock_t wallKickLockTime;
 
 GAMESETTING gs;
 
@@ -119,7 +119,7 @@ int main()
 {
 	system("mode con: cols=75 lines=28");
 	HideCursor();
-	DrawInstruction();
+	DrawFirstScreen();
 	InitGameSetting();
 
 	do
@@ -423,9 +423,9 @@ void GetKeyInput()
 {
 	clock_t autoDownBaseTime = clock();
 	clock_t autoFixBaseTime = clock();
-	clockShortenRatio = 3.0;
 	isWallKickLock = false;
 	wallKickCount = 0;
+	gs.autoFixPassedTime = 1000;
 
 	while (1)
 	{
@@ -502,10 +502,6 @@ void GetKeyInput()
 				ChangeBlockColor();
 				break;
 
-			case 'q':
-				EG1();
-				break;
-
 			case 'b':
 				EG2();
 				break;
@@ -552,12 +548,10 @@ bool DetectCollision(int RightOrLeft, int down, int(*block)[2])
 void FixBlock()
 {
 	if (gs.soundOn == true)
-		Beep(300, 10);
+		Beep(200, 10);
 
 	for (int i = 0; i < 4; i++)
 		board[newBlock[i][0]][newBlock[i][1]] = FIXED_BLOCK;
-
-
 }
 
 int DropBlock()
@@ -686,7 +680,7 @@ void ActiveRemoveLineEffect(const int* const x, int index)
 	}
 
 	if (gs.soundOn == true)
-		Beep(100, 100); // 100, 100 GOOD
+		Beep(100, 100);
 }
 
 void PullLine(int row)
@@ -753,8 +747,6 @@ void RotateBlock(int direction, int(*block)[2])
 	int startY;
 	int index;
 	int i, j, k;
-
-	/////////////////
 	int x = 0, y = 1, mul = 1;
 
 	if (direction == COUNTER_CLOCK_ROTATE)
@@ -763,7 +755,6 @@ void RotateBlock(int direction, int(*block)[2])
 		y = 0;
 		mul = -1;
 	}
-	//////////////
 
 	if (gs.nowBlockType == 6) // bar block
 	{
@@ -814,16 +805,14 @@ bool DetectRotateCollision(int direction)
 	int startY;
 	int index = 0;
 	int i, j, k;
-
-	/////////////////
 	int x = 0, y = 1, mul = 1;
+
 	if (direction == COUNTER_CLOCK_ROTATE) // set revers turn value
 	{
 		x = 1;
 		y = 0;
 		mul = -1;
 	}
-	//////////////
 
 	if (gs.nowBlockType == 6) // block - bar
 	{
@@ -946,7 +935,7 @@ void DrawGameOver()
 		printf("AGAIN: A");
 
 		GoToXY(OFFSET_X + 3, OFFSET_Y + 11);
-		printf("EXIT: ESC");
+		printf("STOP: ESC");
 		Sleep(350);
 	}
 }
@@ -975,7 +964,6 @@ void Hold_Block()
 	// Change block.
 	if (gs.isExecutedHold == false)
 	{
-		//printf("%d", gs.heldBlockType);
 		int temp = gs.nowBlockType;
 		gs.nowBlockType = gs.heldBlockType;
 		gs.heldBlockType = temp;
@@ -1001,7 +989,6 @@ void Hold_Block()
 				{
 					holdBox[i][j] = NEW_BLOCK;
 					goto GET_NEW_K; // for getting k++
-
 				}
 			}
 		}
@@ -1020,13 +1007,14 @@ void AddGameScore(int score)
 {
 	gs.nowScore += score;
 
-	if (gs.nowScore == 777 || gs.nowScore == 7777 || gs.nowScore == 77777)
+	if (gs.nowScore == 777 || gs.nowScore == 7777 || gs.nowScore == 77777 || gs.nowScore == 777777)
 		EG1();
 }
 
 void InitGameSetting()
 {
 	system("cls");
+	system("color 0");
 	HideCursor();
 	memset(&board, 0, sizeof(board));
 	memset(&boardCopy, 0, sizeof(boardCopy));
@@ -1043,7 +1031,7 @@ void InitGameSetting()
 	gs.sevenBagIndex = 0;
 	gs.nowScore = 0;
 	gs.removedLine = 0;
-	gs.autoDownPassedTime = 1000;
+	gs.autoDownPassedTime = 1500;
 	gs.autoFixPassedTime = 1000;
 	gs.heldBlockType = FIRST_HOLD;
 	gs.hold_Lock = false;
@@ -1052,8 +1040,6 @@ void InitGameSetting()
 	gs.isLevelUp = false;
 	gs.soundOn = true;
 	gs.blockColorNum = 7;
-
-	system("color 0");
 }
 
 void SaveBestScore()
@@ -1132,25 +1118,26 @@ void LevelUpByRemovedLine()
 	int minimumPassedTime = 10;
 	int level = (gs.removedLine / levelUp_Per_Lines) + 1;
 
-	if (5 <= level && level <= 9)
+	if (680 < gs.autoDownPassedTime && gs.autoDownPassedTime < 1000)
 		speedUpRatio = 0.09;
 
-	else if (10 <= level && level <= 14)
+	else if (382 < gs.autoDownPassedTime && gs.autoDownPassedTime < 680)
 		speedUpRatio = 0.07;
 
-	else if (15 <= level && level <= 19)
+	else if (100 < gs.autoDownPassedTime && gs.autoDownPassedTime < 382)
 		speedUpRatio = 0.05;
 
-	else if (20 <= level && level <= 24)
-		speedUpRatio = 0.03;
+	else if (50 < gs.autoDownPassedTime && gs.autoDownPassedTime < 100)
+		speedUpRatio = 0.04;
 
-	// else 0.02; 밸런스 조정 다시 생각해볼 것...
+	else
+		speedUpRatio = 0.03;
 
 	while (gs.gameLevel < level)
 	{
 		gs.gameLevel++;
 
-		if (gs.autoDownPassedTime <= minimumPassedTime) // Minimum value 50 
+		if (gs.autoDownPassedTime <= minimumPassedTime)
 		{
 			gs.autoDownPassedTime = minimumPassedTime;
 			break;
@@ -1158,9 +1145,6 @@ void LevelUpByRemovedLine()
 
 		gs.autoDownPassedTime -= gs.autoDownPassedTime * speedUpRatio;
 	}
-
-	//GoToXY(OFFSET_X + 14, OFFSET_Y + 21);
-	//printf("%lf           ", gs.autoDownPassedTime);
 }
 
 void SoundToggle()
@@ -1168,13 +1152,10 @@ void SoundToggle()
 	gs.soundOn = !gs.soundOn;
 }
 
-void DrawInstruction()
+void DrawHowToPlay()
 {
-	clock_t pastTime = clock();
-	bool strHide = true;
-
-	puts("\n\n\n\n\n  [ TETRIS   GAME ]");
-	puts("\n   ▼  KEY  ▼ \n");
+	puts("\n\n\n\n\n\n");
+	puts("   ▼▼▼  KEY  ▼▼▼ \n");
 	puts("   SOUND  ON/OFF: M");
 	puts("   CHANGE COLOR: TAB\n");
 	puts("   LEFT:          ←");
@@ -1182,30 +1163,81 @@ void DrawInstruction()
 	puts("   HARD DROP:   SPACE");
 	puts("   SOFT DROP:     ↓");
 	puts("   ROTATE RIGHT:  ↑");
-	puts("   ROTATE LEFT:   Z");
-	puts("   HOLD:          C");
-	puts("\n   ▲  KEY  ▲ \n\n\n\n\n");
-	puts("   Git: github.com/lookskyblue/Tetris");
+	puts("   ROTATE LEFT:    Z");
+	puts("   HOLD:           C\n");
+	puts("   ▲▲▲  KEY  ▲▲▲ \n\n\n\n");
+	puts("   EXIT: ESC");
 
 	while (1)
 	{
 		if (_kbhit())
-			if (tolower(_getch()) == 'a')
+			if (_getch() == ESC)
 				return;
+	}
+}
 
-		if (clock() > pastTime + 500)
+void DrawFirstScreen()
+{
+	const int START = 0;
+	const int METHOD = 1;
+	int choice = 0;
+	int offSetX = 15;
+	int offSetY = 23;
+
+	while (1)
+	{
+		if (choice > METHOD)
+			choice = START;
+
+		else if (choice < START)
+			choice = METHOD;
+
+		if (_kbhit())
 		{
-			GoToXY(0, 22);
+			switch (_getch())
+			{
+			case CLOCK_ROTATE:
+				choice--;
+				break;
 
-			if (strHide == true)
-				printf("                        ");
+			case DOWN:
+				choice++;
+				break;
 
-			else
-				printf("   GAME START: PRESS 'A'");
+			case ENTER:
+			{
+				if (choice == START)
+					return;
 
+				else if (choice == METHOD)
+				{
+					system("cls");
+					DrawHowToPlay();
+					system("cls");
+				}
 
-			strHide = !strHide;
-			pastTime = clock();
+				break;
+			}
+
+			default:
+				break;
+			}
+		}
+
+		if (choice == START)
+		{
+			GoToXY(offSetX, offSetY);
+			puts(" ▶  START  ◀ ");
+			GoToXY(offSetX-1, offSetY + 2);
+			puts("    HOW TO PLAY    ");
+		}
+
+		else
+		{
+			GoToXY(offSetX, offSetY);
+			puts("     START     ");
+			GoToXY(offSetX-1, offSetY + 2);
+			puts("▶  HOW TO PLAY  ◀");
 		}
 	}
 }
@@ -1336,6 +1368,7 @@ void RotationByDirection(int direction)
 				DrawBoard();
 				ChangeRotateState(direction, &gs.rotateState);
 				wallKickCount++;
+				gs.autoFixPassedTime -= 100;
 			}
 		}
 	}
@@ -1428,7 +1461,7 @@ bool AutomaticBlockDown(int* const autoDownBaseTime, int* const autoFixBaseTime)
 {
 	if ((DetectCollision(0, 1, newBlock) == true)) // If it dectct collision && over autoFixBaseTime, active FixBlock() function
 	{
-		if (clock() > *autoFixBaseTime + gs.autoFixPassedTime)
+		if (clock() > * autoFixBaseTime + gs.autoFixPassedTime)
 		{
 			FixingBlockProcedure();
 			return true;
@@ -1437,7 +1470,7 @@ bool AutomaticBlockDown(int* const autoDownBaseTime, int* const autoFixBaseTime)
 		return false;
 	}
 
-	else if (clock() > *autoDownBaseTime + gs.autoDownPassedTime) // If it dosen't collide yet, down a block automatically  
+	else if (clock() > * autoDownBaseTime + gs.autoDownPassedTime) // If it dosen't collide yet, down a block automatically  
 	{
 		*autoDownBaseTime = clock();
 		*autoFixBaseTime = clock();
@@ -1463,7 +1496,7 @@ void AddComma(char* scoreAddComma, int score)
 		if (i && (i % 3) == 0)
 			*p++ = ',';
 
-		*p++ = score % 10 + '0'; // '0' 아스키코드로 더해지지 않는가??
+		*p++ = score % 10 + '0';
 		score /= 10;
 	}
 
@@ -1560,8 +1593,6 @@ void MoveRightOrLeft(int direction, int* const autoFixBaseTime)
 {
 	int dir = 1;
 
-	clockShortenRatio -= 0.1;
-
 	if (direction == LEFT)
 		dir = -1;
 
@@ -1569,6 +1600,5 @@ void MoveRightOrLeft(int direction, int* const autoFixBaseTime)
 	{
 		MoveBlock(dir, 0);
 		DrawBoard();
-		*autoFixBaseTime = clock() * clockShortenRatio;
 	}
 }
