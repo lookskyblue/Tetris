@@ -1,7 +1,7 @@
 Tetris Game
 =============================
 
-<img width="50%" src="https://user-images.githubusercontent.com/71778475/124382918-c898d900-dd04-11eb-902d-d8f0530e00db.gif"/>
+<img width="50%" src="https://user-images.githubusercontent.com/71778475/124383077-8b811680-dd05-11eb-83ee-f59043833b14.gif"/>
 
 # The more points you get, the faster you get.
 
