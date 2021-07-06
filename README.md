@@ -9,11 +9,12 @@ Tetris Game
 
 ***
 > ## Description
-> 1. I made it based on a window API.
-> 2. Unless you run into an obstacle(long box), your score(Elapsed Time) will continue to rise.
-> 3. Ceated date: 2021-02-07
+> 0. There are some ester egg. Why don't you try to find it?
+> 1. I made it based on a window console.
+> 2. I implement the seven bags
+> 3. Wall kick convention is used. [Click here](https://tetris.fandom.com/wiki/SRS)
+> 4. Ceated date: 2021-01-05
 
 ***
 > ## How To Play
-> > #### Arrow → : Move Right
-> > #### Arrow ← : Move Left
+> Please refer to the "How To Play" on game
