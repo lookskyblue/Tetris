@@ -1,11 +1,11 @@
-﻿#include <stdio.h>
+#include <stdio.h>
 #include <conio.h>
 #include <windows.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
 #include "block.h"
-#include "rotate_info.h"
+#include "rotate_Info.h"
 #include "wall_kick_convention.h"
 
 #define COUNTER_CLOCK_ROTATE 122 // ascii 122 'z'
@@ -63,6 +63,7 @@ void InitGameSetting();
 void DrawFirstScreen();
 void EGKey(int EGNum);
 void DrawHowToPlay();
+void OverDrawPauseText(const char str[]);
 void SaveBestScore();
 int  CheckSevenBag();
 void DrawGameOver();
@@ -111,6 +112,7 @@ int wallKickCount;
 int barAxisX;
 int barAxisY;
 bool isWallKickLock;
+bool is_pause_game = false;
 clock_t wallKickLockTime;
 
 GAMESETTING gs;
@@ -429,88 +431,126 @@ void GetKeyInput()
 
 	while (1)
 	{
-		if (AutomaticBlockDown(&autoDownBaseTime, &autoFixBaseTime) == true)
-			return;
-
-		if (_kbhit())
+		if (is_pause_game == false)
 		{
-			switch (_getch())
-			{
-			case CLOCK_ROTATE: // key up
-			{
-				RotationByDirection(CLOCK_ROTATE);
-				break;
-			}
+			if (AutomaticBlockDown(&autoDownBaseTime, &autoFixBaseTime) == true)
+				return;
 
-			case COUNTER_CLOCK_ROTATE: // key 'z'
+			if (_kbhit())
 			{
-				RotationByDirection(COUNTER_CLOCK_ROTATE);
-				break;
-			}
-
-			case LEFT:
-			{
-				MoveRightOrLeft(LEFT, &autoFixBaseTime);
-				break;
-			}
-
-			case RIGHT:
-			{
-				MoveRightOrLeft(RIGHT, &autoFixBaseTime);
-				break;
-			}
-
-			case DOWN:
-			{
-				if (DetectCollision(0, 1, newBlock) == false)
+				switch (_getch())
 				{
-					MoveBlock(0, 1);
-					AddGameScore(1);
-					DrawBoard();
-					autoFixBaseTime = clock();
+				case CLOCK_ROTATE: // key up
+				{
+					RotationByDirection(CLOCK_ROTATE);
+					break;
 				}
 
-				break;
-			}
-
-			case HOLD:
-			{
-				if (gs.hold_Lock == false)
+				case COUNTER_CLOCK_ROTATE: // key 'z'
 				{
-					Hold_Block();
-					gs.hold_Lock = true;
+					RotationByDirection(COUNTER_CLOCK_ROTATE);
+					break;
+				}
+
+				case LEFT:
+				{
+					MoveRightOrLeft(LEFT, &autoFixBaseTime);
+					break;
+				}
+
+				case RIGHT:
+				{
+					MoveRightOrLeft(RIGHT, &autoFixBaseTime);
+					break;
+				}
+
+				case DOWN:
+				{
+					if (DetectCollision(0, 1, newBlock) == false)
+					{
+						MoveBlock(0, 1);
+						AddGameScore(1);
+						DrawBoard();
+						autoFixBaseTime = clock();
+					}
+
+					break;
+				}
+
+				case HOLD:
+				{
+					if (gs.hold_Lock == false)
+					{
+						Hold_Block();
+						gs.hold_Lock = true;
+
+						return;
+					}
+
+					break;
+				}
+
+				case SPACE:
+				{
+					AddGameScore(DropBlock() * 2);
+					FixingBlockProcedure();
 
 					return;
 				}
 
-				break;
-			}
+				case SOUND_TOGGLE: // mute
+					SoundToggle();
+					break;
 
-			case SPACE:
+				case CHANGE_BLOCK_COLOR:
+					ChangeBlockColor();
+					break;
+
+				case 'b':
+					EG2();
+					break;
+
+					// added a function. check pause resume. 2021-10-22
+				case ESC:
+				{
+					is_pause_game = true;
+					OverDrawPauseText("PAUSE...");
+
+					break;
+				}
+
+				default:
+					break;
+				}
+			}
+		}
+
+		else // 애석하게도 clock 경과에 따른 block fix처리하는 함수까지는 손을 못봄.. 블록이 땅에 닿았을 경우 pause 일정 시간 뒤 resume 되면 block 바로 fix됨. 
+		{
+			if (_kbhit())
 			{
-				AddGameScore(DropBlock() * 2);
-				FixingBlockProcedure();
+				switch (_getch())
+				{
+				case ESC:
+				{
+					is_pause_game = false;
+					OverDrawPauseText("        ");
 
-				return;
-			}
+					break;
+				}
 
-			case SOUND_TOGGLE: // mute
-				SoundToggle();
-				break;
-
-			case CHANGE_BLOCK_COLOR:
-				ChangeBlockColor();
-				break;
-
-			case 'b':
-				EG2();
-				break;
-
-			default:
-				break;
+				default:
+					break;
+				}
 			}
 		}
 	}
+}
+
+void OverDrawPauseText(const char str[])
+{
+	GoToXY(15 + OFFSET_X, 12 + OFFSET_Y);
+	printf("%s", str);
 }
 
 void MoveBlock(int RightOrLeft, int down)
@@ -1031,7 +1071,7 @@ void InitGameSetting()
 	gs.sevenBagIndex = 0;
 	gs.nowScore = 0;
 	gs.removedLine = 0;
-	gs.autoDownPassedTime = 1500;
+	gs.autoDownPassedTime = 1000;
 	gs.autoFixPassedTime = 1000;
 	gs.heldBlockType = FIRST_HOLD;
 	gs.hold_Lock = false;
@@ -1114,7 +1154,7 @@ int BalancingLineScoreByLevel(int removedLine)
 void LevelUpByRemovedLine()
 {
 	double speedUpRatio = 0.1; // I think Init value 0.1 ~ 0.3 is good 
-	int levelUp_Per_Lines = 5; // 4~6 is good. 10 is so long game..
+	int levelUp_Per_Lines = 2; // 4~6 is good. 10 is so long game..
 	int minimumPassedTime = 10;
 	int level = (gs.removedLine / levelUp_Per_Lines) + 1;
 
@@ -1155,18 +1195,21 @@ void SoundToggle()
 void DrawHowToPlay()
 {
 	puts("\n\n\n\n\n\n");
-	puts("   ▼▼▼  KEY  ▼▼▼ \n");
-	puts("   SOUND  ON/OFF: M");
-	puts("   CHANGE COLOR: TAB\n");
-	puts("   LEFT:          ←");
-	puts("   RIGHT:         →");
-	puts("   HARD DROP:   SPACE");
-	puts("   SOFT DROP:     ↓");
-	puts("   ROTATE RIGHT:  ↑");
-	puts("   ROTATE LEFT:    Z");
-	puts("   HOLD:           C\n");
-	puts("   ▲▲▲  KEY  ▲▲▲ \n\n\n\n");
-	puts("   EXIT: ESC");
+	puts("                            ■■■■■■■■■■■■■■");
+	puts("                            ■                        ■");
+	puts("                            ■   SOUND  ON/OFF: M     ■");
+	puts("                            ■   CHANGE COLOR: TAB    ■");
+	puts("                            ■   LEFT:          ←    ■");
+	puts("                            ■   RIGHT:         →    ■");
+	puts("                            ■   HARD DROP:   SPACE   ■");
+	puts(" EXIT: ESC                  ■                        ■");				    
+	puts("                            ■   SOFT DROP:     ↓    ■");
+	puts("                            ■   ROTATE RIGHT:  ↑    ■");
+	puts("                            ■   ROTATE LEFT:    Z    ■");
+	puts("                            ■   HOLD:           C    ■");
+	puts("                            ■   PAUSE OR RESUME: ESC ■");
+	puts("                            ■                        ■");
+	puts("                            ■■■■■■■■■■■■■■ \n");
 
 	while (1)
 	{
