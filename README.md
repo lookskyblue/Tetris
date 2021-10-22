@@ -18,3 +18,11 @@ Tetris Game
 ***
 > ## How To Play
 > Please refer to the "How To Play" on game
+
+***
+> ## Update
+> 
+> ### 2021-10-22 
+> 1. Added a pause or resume button. 
+> 
+> 2. Modified How To Play Guide. 
