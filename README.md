@@ -26,3 +26,5 @@ Tetris Game
 > 1. Added a pause or resume button. 
 > 
 > 2. Modified How To Play Guide. 
+> 
+>      ![tetris_howtoplay](https://user-images.githubusercontent.com/71778475/138447501-fca8f65c-e6a1-4554-bbd3-78be73bac5ee.PNG)
