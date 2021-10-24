@@ -28,3 +28,7 @@ Tetris Game
 > 2. Modified How To Play Guide. 
 > 
 >      ![tetris_howtoplay](https://user-images.githubusercontent.com/71778475/138447501-fca8f65c-e6a1-4554-bbd3-78be73bac5ee.PNG)
+
+> ### 2021-10-24
+> 1. Added a functoin that pause a game if window is not focus
+
