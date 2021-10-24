@@ -117,8 +117,12 @@ clock_t wallKickLockTime;
 
 GAMESETTING gs;
 
+HWND foreground_window_name;
+
 int main()
 {
+	foreground_window_name = GetForegroundWindow();
+
 	system("mode con: cols=75 lines=28");
 	HideCursor();
 	DrawFirstScreen();
@@ -431,6 +435,12 @@ void GetKeyInput()
 
 	while (1)
 	{
+		if (foreground_window_name != GetForegroundWindow())
+		{
+			is_pause_game = true;
+			OverDrawPauseText("PAUSE...");
+		}
+
 		if (is_pause_game == false)
 		{
 			if (AutomaticBlockDown(&autoDownBaseTime, &autoFixBaseTime) == true)
