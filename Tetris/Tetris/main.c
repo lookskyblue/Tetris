@@ -9,6 +9,7 @@
 #include "wall_kick_convention.h"
 
 #define COUNTER_CLOCK_ROTATE 122 // ascii 122 'z'
+#define UPPER_COUNTER_CLOCK_ROTATE 90 // ascii 90 'Z'
 #define CHANGE_BLOCK_COLOR 9     // tab
 #define SOUND_TOGGLE 109         // alp 'm' 
 #define CLOCK_ROTATE 72          // ascii up key.
@@ -30,6 +31,7 @@
 #define LEFT 75
 #define DOWN 80
 #define HOLD 99                  // alp 'c'
+#define UPPER_HOLD 67		     // alp 'C'
 #define STOP 0
 #define ESC 27
 
@@ -457,6 +459,7 @@ void GetKeyInput()
 				}
 
 				case COUNTER_CLOCK_ROTATE: // key 'z'
+				case UPPER_COUNTER_CLOCK_ROTATE:
 				{
 					RotationByDirection(COUNTER_CLOCK_ROTATE);
 					break;
@@ -488,6 +491,7 @@ void GetKeyInput()
 				}
 
 				case HOLD:
+				case UPPER_HOLD:
 				{
 					if (gs.hold_Lock == false)
 					{
@@ -517,6 +521,7 @@ void GetKeyInput()
 					break;
 
 				case 'b':
+				case 'B':
 					EG2();
 					break;
 
