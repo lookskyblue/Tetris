@@ -40,13 +40,12 @@ int  GetUserAnswer();
 int  RemoveLine();
 int  DropBlock();
 
-bool AutomaticBlockDown(int* const autoDownBaseTime, int* const autoFixBaseTime);
 bool DetectCollision(int RightOrLeft, int down, int(*block)[2]);
 bool DetectRotateCollision(int direction);
 bool WallKick(int direction);
-bool CheckGameOver();
+bool IsGameOver();
 
-void MoveRightOrLeft(int direction, int* const autoFixBaseTime);
+void MoveRightOrLeft(int direction);
 void ActiveRemoveLineEffect(const int* const x, int index);
 void ChangeRotateState(int direction, int* const state);
 void RotateBlock(int direction, int(*block)[2]);
@@ -54,8 +53,12 @@ void MoveBlock(int RightOrLeft, int down);
 void RotationByDirection(int direction);
 void AddComma(char* result, int score);
 void AddGameScore(int score);
+void CheckForegroundWindow();
 void FixingBlockProcedure();
 void LevelUpByRemovedLine();
+void ProcessNextBlockStep();
+void StartGameOverProcess();
+void AutomaticBlockDown();
 void GoToXY(int x, int y);
 void LoadBestScoreFile();
 void ChangeBlockColor();
@@ -68,11 +71,14 @@ void DrawHowToPlay();
 void OverDrawPauseText(const char str[]);
 void SaveBestScore();
 int  CheckSevenBag();
+void StartMainGame(HWND hwnd, UINT uMsg, UINT timerId, DWORD dwTime);
 void DrawGameOver();
 void GetNextBlock();
-void GetKeyInput();
+void HandleKeyInput();
 void Unlock_Hold();
 void SoundToggle();
+int GetKeyInput();
+void ResetTimer();
 void HideCursor();
 void Hold_Block();
 void DrawBoard();
@@ -130,38 +136,211 @@ int main()
 	DrawFirstScreen();
 	InitGameSetting();
 
-	do
+	SetTimer(NULL, 0, 10, StartMainGame);
+	
+	MSG msg;
+
+	while (GetMessage(&msg, NULL, 0, 0))
 	{
-		GetNextBlock();
-		DrawBoard();
-		GetKeyInput();
-		LevelUpByRemovedLine();
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
 
-		if (CheckGameOver() == true)
+clock_t autoFixBaseTime;
+clock_t autoDownBaseTime;
+
+void StartMainGame(HWND hwnd, UINT uMsg, UINT timerId, DWORD dwTime)
+{
+	CheckForegroundWindow();
+
+	if (is_pause_game == true)
+	{
+		// 애석하게도 clock 경과에 따른 block fix처리하는 함수까지는 손을 못봄.. 블록이 땅에 닿았을 경우 pause 일정 시간 뒤 resume 되면 block 바로 fix됨. 
+		
+		if (GetKeyInput() == ESC)
 		{
-			int userAnswer;
-
-			if (gs.bestScore < gs.nowScore)
-			{
-				SaveBestScore();
-			}
-
-			DrawGameOver();
-			userAnswer = GetUserAnswer(); // whether to again or exit
-
-			if (userAnswer == AGAIN)
-			{
-				InitGameSetting();
-				continue;
-			}
-
-			else if (userAnswer == ESC)
-			{
-				return;
-			}
+			is_pause_game = false;
+			OverDrawPauseText("        ");
 		}
+	}
+	else
+	{
+		AutomaticBlockDown();
+		HandleKeyInput(); 
+		DrawBoard();
 
-	} while (1);
+		if (IsGameOver() == true)
+		{
+			StartGameOverProcess();
+		}
+	}
+}
+
+void ResetTimer()
+{
+	autoFixBaseTime = clock();
+	autoDownBaseTime = clock();
+	gs.autoFixPassedTime = 1000;
+}
+
+void StartGameOverProcess()
+{
+	SaveBestScore();
+	DrawGameOver();
+
+	if (GetUserAnswer() == AGAIN) // whether to again or exit
+	{
+		InitGameSetting();
+	}
+	else
+	{
+		exit(EXIT_SUCCESS);
+	}
+}
+
+void CheckForegroundWindow()
+{
+	if (foreground_window_name != GetForegroundWindow())
+	{
+		is_pause_game = true;
+		OverDrawPauseText("PAUSE...");
+	}
+}
+
+int GetKeyInput()
+{
+	int keyValue = -1;
+
+	if (_kbhit())
+	{
+		keyValue = _getch();
+
+		if (keyValue == 227)
+		{
+			keyValue = _getch();
+		}
+	}
+
+	return keyValue;
+}
+
+void ProcessNextBlockStep()
+{
+	ResetTimer();
+	GetNextBlock();
+	LevelUpByRemovedLine();
+}
+
+void HandleKeyInput()
+{
+	int keyValue = GetKeyInput();
+
+	isWallKickLock = false;
+	wallKickCount = 0;
+
+	switch (keyValue)
+	{
+	case CLOCK_ROTATE: // key up
+	{
+		RotationByDirection(CLOCK_ROTATE);
+
+		break;
+	}
+
+	case COUNTER_CLOCK_ROTATE: // key 'z'
+	case UPPER_COUNTER_CLOCK_ROTATE:
+	{
+		RotationByDirection(COUNTER_CLOCK_ROTATE);
+
+		break;
+	}
+
+	case LEFT:
+	{
+		MoveRightOrLeft(LEFT);
+
+		break;
+	}
+
+	case RIGHT:
+	{
+		MoveRightOrLeft(RIGHT);
+
+		break;
+	}
+
+	case DOWN:
+	{
+		if (DetectCollision(0, 1, newBlock) == false)
+		{
+			MoveBlock(0, 1);
+			AddGameScore(1);
+			DrawBoard();
+			autoFixBaseTime = clock();
+
+			break;
+		}
+	}
+
+	case HOLD:
+	case UPPER_HOLD:
+	{
+		if (gs.hold_Lock == false)
+		{
+			Hold_Block();
+			gs.hold_Lock = true;
+			ProcessNextBlockStep();
+
+			break;
+		}
+	}
+
+	case SPACE:
+	{
+		AddGameScore(DropBlock() * 2);
+		FixingBlockProcedure();
+		ProcessNextBlockStep();
+		
+		break;
+	}
+
+	case SOUND_TOGGLE: // mute
+	{
+		SoundToggle();
+
+		break;
+	}
+
+	case CHANGE_BLOCK_COLOR:
+	{
+		ChangeBlockColor();
+
+		break;
+	}
+
+	case 'b':
+	case 'B':
+	{
+		EG2();
+
+		break;
+	}
+
+	// added a function. check pause resume. 2021-10-22
+	case ESC:
+	{
+		is_pause_game = true;
+		OverDrawPauseText("PAUSE...");
+
+		break;
+	}
+
+	default:
+	{
+		break;
+	}
+	}
 }
 
 void GoToXY(int x, int y)
@@ -424,141 +603,6 @@ void CreateNextBlock()
 		}
 
 	GET_NEW_K:;
-	}
-}
-
-void GetKeyInput()
-{
-	clock_t autoDownBaseTime = clock();
-	clock_t autoFixBaseTime = clock();
-	isWallKickLock = false;
-	wallKickCount = 0;
-	gs.autoFixPassedTime = 1000;
-
-	while (1)
-	{
-		if (foreground_window_name != GetForegroundWindow())
-		{
-			is_pause_game = true;
-			OverDrawPauseText("PAUSE...");
-		}
-
-		if (is_pause_game == false)
-		{
-			if (AutomaticBlockDown(&autoDownBaseTime, &autoFixBaseTime) == true)
-				return;
-
-			if (_kbhit())
-			{
-				switch (_getch())
-				{
-				case CLOCK_ROTATE: // key up
-				{
-					RotationByDirection(CLOCK_ROTATE);
-					break;
-				}
-
-				case COUNTER_CLOCK_ROTATE: // key 'z'
-				case UPPER_COUNTER_CLOCK_ROTATE:
-				{
-					RotationByDirection(COUNTER_CLOCK_ROTATE);
-					break;
-				}
-
-				case LEFT:
-				{
-					MoveRightOrLeft(LEFT, &autoFixBaseTime);
-					break;
-				}
-
-				case RIGHT:
-				{
-					MoveRightOrLeft(RIGHT, &autoFixBaseTime);
-					break;
-				}
-
-				case DOWN:
-				{
-					if (DetectCollision(0, 1, newBlock) == false)
-					{
-						MoveBlock(0, 1);
-						AddGameScore(1);
-						DrawBoard();
-						autoFixBaseTime = clock();
-					}
-
-					break;
-				}
-
-				case HOLD:
-				case UPPER_HOLD:
-				{
-					if (gs.hold_Lock == false)
-					{
-						Hold_Block();
-						gs.hold_Lock = true;
-
-						return;
-					}
-
-					break;
-				}
-
-				case SPACE:
-				{
-					AddGameScore(DropBlock() * 2);
-					FixingBlockProcedure();
-
-					return;
-				}
-
-				case SOUND_TOGGLE: // mute
-					SoundToggle();
-					break;
-
-				case CHANGE_BLOCK_COLOR:
-					ChangeBlockColor();
-					break;
-
-				case 'b':
-				case 'B':
-					EG2();
-					break;
-
-					// added a function. check pause resume. 2021-10-22
-				case ESC:
-				{
-					is_pause_game = true;
-					OverDrawPauseText("PAUSE...");
-
-					break;
-				}
-
-				default:
-					break;
-				}
-			}
-		}
-
-		else // 애석하게도 clock 경과에 따른 block fix처리하는 함수까지는 손을 못봄.. 블록이 땅에 닿았을 경우 pause 일정 시간 뒤 resume 되면 block 바로 fix됨. 
-		{
-			if (_kbhit())
-			{
-				switch (_getch())
-				{
-				case ESC:
-				{
-					is_pause_game = false;
-					OverDrawPauseText("        ");
-
-					break;
-				}
-
-				default:
-					break;
-				}
-			}
-		}
 	}
 }
 
@@ -917,7 +961,7 @@ bool DetectRotateCollision(int direction)
 	return false;
 }
 
-bool CheckGameOver()
+bool IsGameOver()
 {
 	for (int i = 1; i < BOARD_WIDTH; i++)
 	{
@@ -1001,7 +1045,7 @@ int GetUserAnswer()
 
 	while (1)
 	{
-		userKeyInput = tolower(_getch());
+		userKeyInput = GetKeyInput();
 
 		if (userKeyInput == ESC)
 			return ESC;
@@ -1095,10 +1139,19 @@ void InitGameSetting()
 	gs.isLevelUp = false;
 	gs.soundOn = true;
 	gs.blockColorNum = 7;
+
+	ResetTimer();
+	GetNextBlock();
+	DrawBoard();
 }
 
 void SaveBestScore()
 {
+	if (gs.bestScore >= gs.nowScore)
+	{
+		return;
+	}
+
 	FILE* bestScoreFile;
 
 	fopen_s(&bestScoreFile, "bestScore.txt", "w");
@@ -1228,9 +1281,10 @@ void DrawHowToPlay()
 
 	while (1)
 	{
-		if (_kbhit())
-			if (_getch() == ESC)
-				return;
+		if (GetKeyInput() == ESC)
+		{
+			return;
+		}
 	}
 }
 
@@ -1253,36 +1307,33 @@ void DrawFirstScreen()
 		else if (choice < START)
 			choice = METHOD;
 
-		if (_kbhit())
+		switch (GetKeyInput())
 		{
-			switch (_getch())
+		case CLOCK_ROTATE:
+			choice--;
+			break;
+
+		case DOWN:
+			choice++;
+			break;
+
+		case ENTER:
+		{
+			if (choice == START)
+				return;
+
+			else if (choice == METHOD)
 			{
-			case CLOCK_ROTATE:
-				choice--;
-				break;
-
-			case DOWN:
-				choice++;
-				break;
-
-			case ENTER:
-			{
-				if (choice == START)
-					return;
-
-				else if (choice == METHOD)
-				{
-					system("cls");
-					DrawHowToPlay();
-					system("cls");
-				}
-
-				break;
+				system("cls");
+				DrawHowToPlay();
+				system("cls");
 			}
 
-			default:
-				break;
-			}
+			break;
+		}
+
+		default:
+			break;
 		}
 
 		if (choice == START)
@@ -1518,29 +1569,25 @@ int CheckSevenBag()
 	} while (1);
 }
 
-bool AutomaticBlockDown(int* const autoDownBaseTime, int* const autoFixBaseTime)
+void AutomaticBlockDown()
 {
 	if ((DetectCollision(0, 1, newBlock) == true)) // If it dectct collision && over autoFixBaseTime, active FixBlock() function
 	{
-		if (clock() > * autoFixBaseTime + gs.autoFixPassedTime)
+		if (clock() > autoFixBaseTime + gs.autoFixPassedTime)
 		{
 			FixingBlockProcedure();
-			return true;
+			
+			ProcessNextBlockStep();
 		}
-
-		return false;
 	}
 
-	else if (clock() > * autoDownBaseTime + gs.autoDownPassedTime) // If it dosen't collide yet, down a block automatically  
+	else if (clock() > autoDownBaseTime + gs.autoDownPassedTime) // If it dosen't collide yet, down a block automatically  
 	{
-		*autoDownBaseTime = clock();
-		*autoFixBaseTime = clock();
+		autoDownBaseTime = clock();
+		autoFixBaseTime = clock();
 		MoveBlock(0, 1);
 		DrawBoard();
-		return false;
 	}
-
-	return false;
 }
 
 void AddComma(char* scoreAddComma, int score)
@@ -1627,30 +1674,27 @@ void EGKey(int EGNum)
 {
 	while (1)
 	{
-		if (_kbhit())
+		if (tolower(GetKeyInput()) == 'q')
 		{
-			if (_getch() == 'q')
+			system("cls");
+
+			if (EGNum == 1)
 			{
-				system("cls");
-
-				if (EGNum == 1)
-				{
-					memset(&board, 0, sizeof(board));
-					SetBoard();
-				}
-
-				memset(&boardCopy, 0, sizeof(boardCopy));
-				memset(&holdBoxCopy, 0, sizeof(holdBoxCopy));
-				memset(&nextBoxCopy, 0, sizeof(nextBoxCopy));
-				DrawBoard();
-
-				return;
+				memset(&board, 0, sizeof(board));
+				SetBoard();
 			}
+
+			memset(&boardCopy, 0, sizeof(boardCopy));
+			memset(&holdBoxCopy, 0, sizeof(holdBoxCopy));
+			memset(&nextBoxCopy, 0, sizeof(nextBoxCopy));
+			DrawBoard();
+
+			return;
 		}
 	}
 }
 
-void MoveRightOrLeft(int direction, int* const autoFixBaseTime)
+void MoveRightOrLeft(int direction)
 {
 	int dir = 1;
 
