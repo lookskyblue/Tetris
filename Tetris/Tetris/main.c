@@ -122,7 +122,8 @@ int barAxisY;
 bool isWallKickLock;
 bool is_pause_game = false;
 clock_t wallKickLockTime;
-
+clock_t autoFixBaseTime;
+clock_t autoDownBaseTime;
 GAMESETTING gs;
 
 HWND foreground_window_name;
@@ -133,11 +134,12 @@ int main()
 
 	system("mode con: cols=75 lines=28");
 	HideCursor();
-	DrawFirstScreen();
-	InitGameSetting();
-
-	SetTimer(NULL, 0, 10, StartMainGame);
 	
+	DrawFirstScreen();
+
+	InitGameSetting();
+	SetTimer(NULL, 1, 10, StartMainGame);
+
 	MSG msg;
 
 	while (GetMessage(&msg, NULL, 0, 0))
@@ -147,9 +149,6 @@ int main()
 	}
 }
 
-clock_t autoFixBaseTime;
-clock_t autoDownBaseTime;
-
 void StartMainGame(HWND hwnd, UINT uMsg, UINT timerId, DWORD dwTime)
 {
 	CheckForegroundWindow();
@@ -157,7 +156,7 @@ void StartMainGame(HWND hwnd, UINT uMsg, UINT timerId, DWORD dwTime)
 	if (is_pause_game == true)
 	{
 		// 애석하게도 clock 경과에 따른 block fix처리하는 함수까지는 손을 못봄.. 블록이 땅에 닿았을 경우 pause 일정 시간 뒤 resume 되면 block 바로 fix됨. 
-		
+
 		if (GetKeyInput() == ESC)
 		{
 			is_pause_game = false;
@@ -167,7 +166,7 @@ void StartMainGame(HWND hwnd, UINT uMsg, UINT timerId, DWORD dwTime)
 	else
 	{
 		AutomaticBlockDown();
-		HandleKeyInput(); 
+		HandleKeyInput();
 		DrawBoard();
 
 		if (IsGameOver() == true)
@@ -276,11 +275,10 @@ void HandleKeyInput()
 		{
 			MoveBlock(0, 1);
 			AddGameScore(1);
-			DrawBoard();
 			autoFixBaseTime = clock();
-
-			break;
 		}
+
+		break;
 	}
 
 	case HOLD:
@@ -292,8 +290,9 @@ void HandleKeyInput()
 			gs.hold_Lock = true;
 			ProcessNextBlockStep();
 
-			break;
 		}
+
+		break;
 	}
 
 	case SPACE:
@@ -301,7 +300,7 @@ void HandleKeyInput()
 		AddGameScore(DropBlock() * 2);
 		FixingBlockProcedure();
 		ProcessNextBlockStep();
-		
+
 		break;
 	}
 
@@ -526,6 +525,7 @@ void DrawBoard()
 	GoToXY(OFFSET_X + 14, OFFSET_Y + 19);
 	printf("COLOR: TAB");
 }
+
 
 void GetNextBlock()
 {
@@ -1011,6 +1011,8 @@ void DrawGameOver()
 		Sleep(250);
 	}
 
+	DrawBoard();
+
 	for (i = 0; i < 5; i++)
 	{
 		for (j = 1; j < BOARD_WIDTH; j++)
@@ -1019,7 +1021,6 @@ void DrawGameOver()
 		}
 	}
 
-	DrawBoard();
 
 	for (i = 0; i < 2; i++)
 	{
@@ -1142,7 +1143,6 @@ void InitGameSetting()
 
 	ResetTimer();
 	GetNextBlock();
-	DrawBoard();
 }
 
 void SaveBestScore()
@@ -1270,7 +1270,7 @@ void DrawHowToPlay()
 	puts("                            ■   LEFT:          ←    ■");
 	puts("                            ■   RIGHT:         →    ■");
 	puts("                            ■   HARD DROP:   SPACE   ■");
-	puts(" EXIT: ESC                  ■                        ■");				    
+	puts(" EXIT: ESC                  ■                        ■");
 	puts("                            ■   SOFT DROP:     ↓    ■");
 	puts("                            ■   ROTATE RIGHT:  ↑    ■");
 	puts("                            ■   ROTATE LEFT:    Z    ■");
@@ -1340,7 +1340,7 @@ void DrawFirstScreen()
 		{
 			GoToXY(offSetX, offSetY);
 			puts(" ▶  START  ◀ ");
-			GoToXY(offSetX-1, offSetY + 2);
+			GoToXY(offSetX - 1, offSetY + 2);
 			puts("    HOW TO PLAY    ");
 		}
 
@@ -1348,7 +1348,7 @@ void DrawFirstScreen()
 		{
 			GoToXY(offSetX, offSetY);
 			puts("     START     ");
-			GoToXY(offSetX-1, offSetY + 2);
+			GoToXY(offSetX - 1, offSetY + 2);
 			puts("▶  HOW TO PLAY  ◀");
 		}
 	}
@@ -1454,7 +1454,6 @@ void RotationByDirection(int direction)
 		for (int i = 0; i < 4; i++)
 			board[newBlock[i][0]][newBlock[i][1]] = NEW_BLOCK;
 
-		DrawBoard();
 		ChangeRotateState(direction, &gs.rotateState);
 	}
 
@@ -1477,7 +1476,6 @@ void RotationByDirection(int direction)
 		{
 			if (WallKick(direction) == true)
 			{
-				DrawBoard();
 				ChangeRotateState(direction, &gs.rotateState);
 				wallKickCount++;
 				gs.autoFixPassedTime -= 100;
@@ -1576,7 +1574,7 @@ void AutomaticBlockDown()
 		if (clock() > autoFixBaseTime + gs.autoFixPassedTime)
 		{
 			FixingBlockProcedure();
-			
+
 			ProcessNextBlockStep();
 		}
 	}
@@ -1586,7 +1584,6 @@ void AutomaticBlockDown()
 		autoDownBaseTime = clock();
 		autoFixBaseTime = clock();
 		MoveBlock(0, 1);
-		DrawBoard();
 	}
 }
 
@@ -1704,6 +1701,5 @@ void MoveRightOrLeft(int direction)
 	if (DetectCollision(dir, 0, newBlock) == false)
 	{
 		MoveBlock(dir, 0);
-		DrawBoard();
 	}
 }
