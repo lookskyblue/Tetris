@@ -131,12 +131,9 @@ HWND foreground_window_name;
 int main()
 {
 	foreground_window_name = GetForegroundWindow();
-
 	system("mode con: cols=75 lines=28");
-	HideCursor();
 	
 	DrawFirstScreen();
-
 	InitGameSetting();
 	SetTimer(NULL, 1, 10, StartMainGame);
 
@@ -151,6 +148,7 @@ int main()
 
 void StartMainGame(HWND hwnd, UINT uMsg, UINT timerId, DWORD dwTime)
 {
+	HideCursor(); // 콘솔창의 사이즈를 늘릴 때 커서 블링크가 일어나지 않기 위해 매틱 커서 가리기
 	CheckForegroundWindow();
 
 	if (is_pause_game == true)
@@ -1290,6 +1288,8 @@ void DrawHowToPlay()
 
 void DrawFirstScreen()
 {
+	HideCursor();
+	
 	const int START = 0;
 	const int METHOD = 1;
 	int choice = 0;
