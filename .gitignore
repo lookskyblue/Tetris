@@ -14,6 +14,10 @@ ehthumbs_vista.db
 # 베스트 점수 파일 무시
 bestScore.txt
 
+# 요거 자꾸 거슬리게 해서 무시..
+*.vcxproj
+*.vcxproj.filters
+
 # Folder config file
 [Dd]esktop.ini
 
