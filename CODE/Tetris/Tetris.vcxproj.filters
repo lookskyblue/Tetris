@@ -15,18 +15,18 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\main.c">
+    <ClCompile Include="main.c">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\block.h">
+    <ClInclude Include="block.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\rotate_Info.h">
+    <ClInclude Include="rotate_Info.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\wall_kick_convention.h">
+    <ClInclude Include="wall_kick_convention.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
